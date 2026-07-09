@@ -35,6 +35,15 @@ let queue = [];
 let currentIndex = -1;
 let isPlayingState = false;
 
+// When the server tells us to start playing (a fresh play, a seek-while-
+// playing, or a new track), we estimate the correct position using network
+// latency alone. But YouTube then has to buffer before playback truly
+// begins, and that buffering time varies per client/network — so the
+// position is stale by the time the video actually starts. We stash the
+// server's original {position, updatedAt} here and, once the player
+// actually reaches the PLAYING state, correct against real elapsed time.
+let pendingSync = null;
+
 let localStream = null;
 const peers = new Map(); // socketId -> { pc, name, tile, stream }
 const DRIFT_TOLERANCE = 0.6; // seconds before we force a reseek
@@ -391,13 +400,34 @@ function applyLoad(videoId, position, playing, updatedAt) {
   vinyl.classList.toggle('spinning', playing);
   nowPlayingTitle.textContent = (queue[currentIndex] && queue[currentIndex].title) || videoId;
   updatePlayPauseIcon(playing);
+
+  // startAt was only an estimate (server position + elapsed network time).
+  // Loading/buffering the new video takes additional real time that varies
+  // per client, so once it's actually playing we correct against the true
+  // elapsed time since the server's timestamp, not just our upfront guess.
+  pendingSync = playing ? { position, updatedAt } : null;
 }
 
 function onPlayerStateChange(e) {
   // We drive sync via socket events, not by re-broadcasting every native
   // player event, to avoid feedback loops between clients.
-}
 
+  // This is the fix for the "few seconds apart" desync: YouTube reports
+  // PLAYING only once it has actually started rendering frames — i.e.
+  // buffering is over. That's the one moment we can trust "now" as the
+  // true start time, so we recompute where we *should* be (using the
+  // original server timestamp) and correct any drift right then.
+  if (e.data === YT.PlayerState.PLAYING && pendingSync) {
+    const { position, updatedAt } = pendingSync;
+    const trueElapsed = (Date.now() - updatedAt) / 1000;
+    const target = Math.max(0, position + trueElapsed);
+    const actual = ytPlayer.getCurrentTime();
+    if (Math.abs(actual - target) > DRIFT_TOLERANCE) {
+      ytPlayer.seekTo(target, true);
+    }
+    pendingSync = null;
+  }
+}
 // --- unlock audio for this tab (browsers block unmuted programmatic
 // playback unless it follows a real, synchronous user gesture; socket-
 // driven play/pause/seek always arrive asynchronously, so without this
@@ -421,6 +451,7 @@ playPauseBtn.addEventListener('click', () => {
   // Act locally, synchronously, inside the click — don't wait on the
   // socket round trip, or the browser no longer counts this as a
   // user-gesture-triggered play and may block audio.
+  pendingSync = null; // this client is acting locally/synchronously, no estimate to correct
   if (isPlayingState) {
     isPlayingState = false;
     ytPlayer.pauseVideo();
@@ -452,6 +483,11 @@ socket.on('music:play', ({ position, updatedAt }) => {
     ytPlayer.seekTo(position + (Date.now() - updatedAt) / 1000, true);
     if (audioUnlocked) ytPlayer.unMute();
     ytPlayer.playVideo();
+    // The seekTo above is just our best upfront guess. Buffering after
+    // play/seek takes an unpredictable amount of real time, so remember
+    // the server's original timestamp and correct once PLAYING actually
+    // fires (see onPlayerStateChange).
+    pendingSync = { position, updatedAt };
   }
   vinyl.classList.add('spinning');
   updatePlayPauseIcon(true);
@@ -459,6 +495,7 @@ socket.on('music:play', ({ position, updatedAt }) => {
 
 socket.on('music:pause', ({ position }) => {
   isPlayingState = false;
+  pendingSync = null; // a pause cancels any correction that was waiting on PLAYING
   if (ytPlayer) {
     ytPlayer.seekTo(position, true);
     ytPlayer.pauseVideo();
@@ -471,6 +508,9 @@ socket.on('music:seek', ({ position, updatedAt }) => {
   if (!ytPlayer) return;
   const target = position + (isPlayingState ? (Date.now() - updatedAt) / 1000 : 0);
   ytPlayer.seekTo(target, true);
+  // Seeking while playing re-triggers buffering too, so the same
+  // buffer-then-correct handling applies here.
+  pendingSync = isPlayingState ? { position, updatedAt } : null;
 });
 
 socket.on('music:load-index', ({ index, videoId, updatedAt }) => {
