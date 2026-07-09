@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SyncRoom — listen, talk, watch. together.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== JOIN SCREEN ===================== -->
+<main id="join-screen" class="screen join-screen">
+  <div class="join-card">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="36" height="36">
+          <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="24" cy="24" r="3.2" fill="currentColor"/>
+          <circle cx="24" cy="6.5" r="2.4" fill="currentColor"/>
+          <circle cx="24" cy="41.5" r="2.4" fill="currentColor" opacity="0.4"/>
+          <circle cx="41.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
+          <circle cx="6.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
+        </svg>
+      </span>
+      <h1>SyncRoom</h1>
+    </div>
+    <p class="tagline">One room. Same track, same beat, same call.</p>
+
+    <form id="join-form">
+      <label class="field">
+        <span>Your name</span>
+        <input type="text" id="name-input" placeholder="e.g. Priya" maxlength="24" required autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Room code</span>
+        <div class="room-code-row">
+          <input type="text" id="room-input" placeholder="e.g. sunset-lounge" maxlength="32" required autocomplete="off">
+          <button type="button" id="generate-code-btn" title="Generate a room code">⟳</button>
+        </div>
+      </label>
+      <button type="submit" class="primary-btn">Enter room</button>
+    </form>
+
+    <details class="api-key-details">
+      <summary>YouTube API key <span class="muted">(only needed to import playlists)</span></summary>
+      <p class="muted small" id="server-key-status">Checking whether this room already has a shared key…</p>
+      <input type="password" id="yt-api-key-input" placeholder="AIza...">
+    </details>
+  </div>
+</main>
+
+<!-- ===================== ROOM SCREEN ===================== -->
+<main id="room-screen" class="screen room-screen hidden">
+
+  <header class="room-header">
+    <div class="room-title">
+      <span class="dot-live" id="live-dot"></span>
+      <h2 id="room-name-label">room</h2>
+      <button id="copy-link-btn" class="ghost-btn" title="Copy room link">Copy invite</button>
+    </div>
+    <div class="header-actions">
+      <button id="leave-btn" class="ghost-btn danger">Leave</button>
+    </div>
+  </header>
+
+  <div class="room-body">
+
+    <!-- Left: people + call tiles -->
+    <section class="panel people-panel">
+      <h3>In the room</h3>
+      <div id="tiles" class="tiles"></div>
+      <div class="call-controls">
+        <button id="mic-btn" class="control-btn" data-on="false" title="Toggle microphone">
+          <span class="icon">🎙️</span><span class="label">Mic</span>
+        </button>
+        <button id="cam-btn" class="control-btn" data-on="false" title="Toggle camera">
+          <span class="icon">🎥</span><span class="label">Camera</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Center: the dial + player -->
+    <section class="panel player-panel">
+      <div class="dial-wrap">
+        <svg id="dial-orbit" viewBox="0 0 320 320" class="dial-orbit"></svg>
+        <div id="vinyl" class="vinyl">
+          <div class="vinyl-ring"></div>
+          <div class="vinyl-ring"></div>
+          <div class="vinyl-ring"></div>
+          <div class="vinyl-label">
+            <span id="now-playing-title">Nothing queued yet</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button id="play-pause-btn" class="transport-btn primary">▶</button>
+        <button id="next-btn" class="transport-btn">⏭</button>
+        <div class="seek-row">
+          <span id="time-current" class="time">0:00</span>
+          <input type="range" id="seek-bar" min="0" max="100" value="0" step="1">
+          <span id="time-duration" class="time">0:00</span>
+        </div>
+      </div>
+
+      <div id="yt-player-mount" class="yt-mount"></div>
+      <button id="unlock-audio-btn" class="unlock-audio-btn hidden" type="button">
+        🔈 Click to enable sound in this tab
+      </button>
+
+      <form id="search-form" class="add-track-form">
+        <input type="text" id="search-input" placeholder="Search for a song…">
+        <button type="submit" class="primary-btn small">Search</button>
+      </form>
+      <div id="search-results" class="search-results"></div>
+
+      <form id="add-track-form" class="add-track-form">
+        <input type="text" id="add-track-input" placeholder="Paste a YouTube video or playlist URL…">
+        <button type="submit" class="primary-btn small">Add</button>
+      </form>
+
+      <div class="queue-wrap">
+        <h4>Queue</h4>
+        <ol id="queue-list" class="queue-list"></ol>
+      </div>
+    </section>
+
+    <!-- Right: chat -->
+    <section class="panel chat-panel">
+      <h3>Chat</h3>
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" class="chat-form">
+        <input type="text" id="chat-input" placeholder="Say something…" maxlength="500" autocomplete="off">
+        <button type="submit" class="ghost-btn">Send</button>
+      </form>
+    </section>
+
+  </div>
+</main>
+
+<audio id="local-audio-sink" autoplay muted playsinline></audio>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="app.js"></script>
+</body>
+</html>
