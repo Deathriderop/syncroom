@@ -14,6 +14,19 @@ let myId = null;
 let roomId = null;
 let myName = null;
 
+// If the socket ever drops and reconnects (network blip, tab backgrounded,
+// host going to sleep, etc.) socket.io gives us a fresh connection but the
+// server has no memory of which room we were in. Without re-joining, this
+// client silently stops sending/receiving sync events even though the UI
+// still looks normal. So: whenever we (re)connect and we already know which
+// room we're in, tell the server again.
+socket.on('connect', () => {
+  myId = socket.id;
+  if (roomId && myName) {
+    socket.emit('join-room', { roomId, name: myName });
+  }
+});
+
 let ytPlayer = null;
 let ytReady = false;
 let pendingVideoId = null;
