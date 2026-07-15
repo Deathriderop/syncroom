@@ -53,7 +53,44 @@ let lastKnownSync = null; // { position, updatedAt } or null while paused
 
 let localStream = null;
 const peers = new Map(); // socketId -> { pc, name, tile, stream }
-const DRIFT_TOLERANCE = 0.6; // seconds before we force a reseek
+const DRIFT_TOLERANCE = 0.6; // seconds of drift before we nudge playback rate
+const HARD_RESEEK_TOLERANCE = 1.5; // seconds of drift before we force a jump-cut seek
+
+// ---------------------------------------------------------------------------
+// Clock sync
+// ---------------------------------------------------------------------------
+// All sync math below is "server said position P at server-time T; how far
+// past T are we now?" That only works if every client's Date.now() agrees
+// with the server's. In reality every device's clock is off by anywhere
+// from a few hundred ms to several seconds — and unlike network jitter,
+// that error never corrects itself, so it shows up as a constant lag
+// between people (exactly the "slight delay" symptom). clockOffset is our
+// best estimate of (server time) - (our Date.now()); now() below applies it
+// everywhere elapsed time is computed against a server timestamp.
+let clockOffset = 0;
+function now() {
+  return Date.now() + clockOffset;
+}
+function syncClock() {
+  const clientSentAt = Date.now();
+  socket.emit('time:sync', clientSentAt);
+}
+socket.on('time:sync', ({ clientSentAt, serverTime }) => {
+  const rtt = Date.now() - clientSentAt;
+  // Assume the request and response each took half the round trip; the
+  // server's clock, adjusted for that one-way delay, is our best estimate
+  // of "true now" at the moment we received this reply.
+  const estimatedServerNowAtReceipt = serverTime + rtt / 2;
+  clockOffset = estimatedServerNowAtReceipt - Date.now();
+});
+socket.on('connect', syncClock);
+setInterval(syncClock, 15000);
+// Background tabs throttle timers, so drift can build up silently while a
+// tab is hidden. Re-sync the instant the tab is foregrounded again instead
+// of waiting for the next 15s tick.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') syncClock();
+});
 
 // ICE servers: STUN alone only helps peers find their public IP — it does
 // nothing when a direct connection genuinely can't be made (symmetric NAT,
@@ -93,6 +130,8 @@ const roomNameLabel = document.getElementById('room-name-label');
 const tilesEl = document.getElementById('tiles');
 const micBtn = document.getElementById('mic-btn');
 const camBtn = document.getElementById('cam-btn');
+const selfPreview = document.getElementById('self-preview');
+const selfPreviewVideo = document.getElementById('self-preview-video');
 const leaveBtn = document.getElementById('leave-btn');
 const copyLinkBtn = document.getElementById('copy-link-btn');
 
@@ -211,13 +250,26 @@ micBtn.addEventListener('click', async () => {
 camBtn.addEventListener('click', async () => {
   const on = camBtn.getAttribute('data-on') === 'true';
   if (!on) {
+    // getUserMedia is only available in a "secure context" — https://, or
+    // http://localhost during local dev. Deployed over plain http://, the
+    // call silently isn't there at all (not even a permission prompt), which
+    // looks identical to "camera isn't working" from the user's side.
+    if (!navigator.mediaDevices || !window.isSecureContext) {
+      alert('Camera access requires HTTPS. This page must be loaded over https:// (or localhost) for the camera to work.');
+      return;
+    }
     try {
       const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
       const track = camStream.getVideoTracks()[0];
       localStream.addTrack(track);
       peers.forEach(({ pc }) => pc.addTrack(track, localStream));
+      selfPreviewVideo.srcObject = new MediaStream([track]);
+      selfPreview.classList.remove('hidden');
     } catch (err) {
-      alert('Could not access camera: ' + err.message);
+      const hint = err.name === 'NotAllowedError'
+        ? 'Camera permission was blocked. Click the padlock/site-info icon in your address bar, allow camera access, then try again.'
+        : err.message;
+      alert('Could not access camera: ' + hint);
       return;
     }
   } else {
@@ -225,6 +277,8 @@ camBtn.addEventListener('click', async () => {
       t.stop();
       localStream.removeTrack(t);
     });
+    selfPreviewVideo.srcObject = null;
+    selfPreview.classList.add('hidden');
   }
   camBtn.setAttribute('data-on', String(!on));
   socket.emit('presence:update', { cam: !on });
@@ -441,7 +495,7 @@ function loadTrackWhenReady(videoId, position, playing, updatedAt) {
 }
 
 function applyLoad(videoId, position, playing, updatedAt) {
-  const elapsed = playing ? (Date.now() - updatedAt) / 1000 : 0;
+  const elapsed = playing ? (now() - updatedAt) / 1000 : 0;
   const startAt = Math.max(0, position + elapsed);
   ytPlayer.loadVideoById({ videoId, startSeconds: startAt });
   if (audioUnlocked && playing) ytPlayer.unMute();
@@ -469,13 +523,33 @@ function onPlayerStateChange(e) {
   // original server timestamp) and correct any drift right then.
   if (e.data === YT.PlayerState.PLAYING && pendingSync) {
     const { position, updatedAt } = pendingSync;
-    const trueElapsed = (Date.now() - updatedAt) / 1000;
+    const trueElapsed = (now() - updatedAt) / 1000;
     const target = Math.max(0, position + trueElapsed);
-    const actual = ytPlayer.getCurrentTime();
-    if (Math.abs(actual - target) > DRIFT_TOLERANCE) {
-      ytPlayer.seekTo(target, true);
-    }
+    reconcilePosition(target);
     pendingSync = null;
+  }
+}
+
+// Reconcile our actual playback position against where we should be.
+// Small gaps (a fraction of a second, typical of normal network jitter) are
+// corrected by briefly nudging playbackRate instead of seeking — seekTo()
+// causes a visible/audible jump-cut, while a rate nudge closes the gap
+// smoothly over a couple of seconds, which is what actually reads as "in
+// sync" to a listener. Only a large gap (a real stall, tab was backgrounded,
+// etc.) gets a hard seek, since nudging would take too long to matter.
+let rateNudgeTimeout = null;
+function reconcilePosition(target) {
+  if (!ytPlayer || !ytPlayer.getCurrentTime) return;
+  const actual = ytPlayer.getCurrentTime();
+  const diff = target - actual;
+  const absDiff = Math.abs(diff);
+  if (absDiff > HARD_RESEEK_TOLERANCE) {
+    ytPlayer.seekTo(target, true);
+    ytPlayer.setPlaybackRate(1);
+  } else if (absDiff > DRIFT_TOLERANCE) {
+    ytPlayer.setPlaybackRate(diff > 0 ? 1.1 : 0.9);
+    clearTimeout(rateNudgeTimeout);
+    rateNudgeTimeout = setTimeout(() => ytPlayer.setPlaybackRate(1), 2000);
   }
 }
 // --- unlock audio for this tab (browsers block unmuted programmatic
@@ -550,7 +624,7 @@ seekBar.addEventListener('change', () => {
 socket.on('music:play', ({ position, updatedAt }) => {
   isPlayingState = true;
   if (ytPlayer) {
-    ytPlayer.seekTo(position + (Date.now() - updatedAt) / 1000, true);
+    ytPlayer.seekTo(position + (now() - updatedAt) / 1000, true);
     if (audioUnlocked) ytPlayer.unMute();
     ytPlayer.playVideo();
     // The seekTo above is just our best upfront guess. Buffering after
@@ -578,7 +652,7 @@ socket.on('music:pause', ({ position }) => {
 
 socket.on('music:seek', ({ position, updatedAt }) => {
   if (!ytPlayer) return;
-  const target = position + (isPlayingState ? (Date.now() - updatedAt) / 1000 : 0);
+  const target = position + (isPlayingState ? (now() - updatedAt) / 1000 : 0);
   ytPlayer.seekTo(target, true);
   // Seeking while playing re-triggers buffering too, so the same
   // buffer-then-correct handling applies here.
@@ -619,16 +693,14 @@ setInterval(() => {
   }
 
   driftCheckCounter++;
-  if (driftCheckCounter < 16) return; // ~8s at 500ms/tick
+  if (driftCheckCounter < 8) return; // ~4s at 500ms/tick — tighter than before (was ~8s)
   driftCheckCounter = 0;
 
   if (pendingSync || !isPlayingState || !lastKnownSync) return;
   if (ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) return;
 
-  const target = lastKnownSync.position + (Date.now() - lastKnownSync.updatedAt) / 1000;
-  if (Math.abs(current - target) > DRIFT_TOLERANCE) {
-    ytPlayer.seekTo(target, true);
-  }
+  const target = lastKnownSync.position + (now() - lastKnownSync.updatedAt) / 1000;
+  reconcilePosition(target);
 }, 500);
 
 function formatTime(s) {
@@ -646,8 +718,30 @@ function renderQueue() {
   queue.forEach((item, i) => {
     const li = document.createElement('li');
     li.className = i === currentIndex ? 'active' : '';
-    li.innerHTML = `<span class="qi">${i + 1}</span><span>${escapeHtml(item.title || item.videoId)}</span>`;
-    li.addEventListener('click', () => socket.emit('music:load-index', { index: i }));
+    li.innerHTML = `
+      <span class="qi">${i + 1}</span>
+      <span class="qt">${escapeHtml(item.title || item.videoId)}</span>
+      <span class="q-controls">
+        <button type="button" class="q-btn q-up" title="Move up" ${i === 0 ? 'disabled' : ''}>▲</button>
+        <button type="button" class="q-btn q-down" title="Move down" ${i === queue.length - 1 ? 'disabled' : ''}>▼</button>
+        <button type="button" class="q-btn q-remove" title="Remove from queue">✕</button>
+      </span>`;
+    // Clicking the title/number loads that track; the control buttons stop
+    // propagation so they don't also trigger a load.
+    li.querySelector('.qt').addEventListener('click', () => socket.emit('music:load-index', { index: i }));
+    li.querySelector('.qi').addEventListener('click', () => socket.emit('music:load-index', { index: i }));
+    li.querySelector('.q-up').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (i > 0) socket.emit('queue:move', { from: i, to: i - 1 });
+    });
+    li.querySelector('.q-down').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (i < queue.length - 1) socket.emit('queue:move', { from: i, to: i + 1 });
+    });
+    li.querySelector('.q-remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      socket.emit('queue:remove', { index: i });
+    });
     queueListEl.appendChild(li);
   });
 }

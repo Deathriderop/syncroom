@@ -155,6 +155,19 @@ function cleanupEmptyRoom(roomId) {
 io.on('connection', (socket) => {
   let currentRoomId = null;
 
+  // ---- Clock sync ----
+  // Every sync calculation below (music:play/pause/seek/load-index) trusts
+  // that "Date.now() on the server" and "Date.now() on each client" mean the
+  // same instant. In practice every device's clock is off by anywhere from a
+  // few hundred ms to a few seconds, and that error shows up as a constant,
+  // never-correcting lag between people. This just echoes back the client's
+  // own send-time plus the server's time, so the client can measure round-
+  // trip time and compute its personal offset from server time (see
+  // syncClock() in app.js). No room/game state involved — just a timestamp.
+  socket.on('time:sync', (clientSentAt) => {
+    socket.emit('time:sync', { clientSentAt, serverTime: Date.now() });
+  });
+
   socket.on('join-room', ({ roomId, name }) => {
     if (!roomId) return;
     currentRoomId = roomId;
@@ -254,6 +267,60 @@ io.on('connection', (socket) => {
     io.to(currentRoomId).emit('music:load-index', {
       index: room.currentIndex, videoId: room.queue[room.currentIndex].videoId, updatedAt: room.updatedAt
     });
+  });
+
+  socket.on('queue:remove', ({ index }) => {
+    const room = rooms.get(currentRoomId);
+    if (!room || index < 0 || index >= room.queue.length) return;
+
+    const removingCurrent = index === room.currentIndex;
+    room.queue.splice(index, 1);
+
+    if (room.queue.length === 0) {
+      room.currentIndex = -1;
+      room.isPlaying = false;
+      room.position = 0;
+      room.updatedAt = Date.now();
+    } else if (removingCurrent) {
+      // Keep the same slot (the next track slides into it); if we removed
+      // the last item, wrap to 0 instead of pointing past the end.
+      room.currentIndex = Math.min(index, room.queue.length - 1);
+      room.isPlaying = true;
+      room.position = 0;
+      room.updatedAt = Date.now();
+    } else if (index < room.currentIndex) {
+      // Everything after the removed slot shifted down by one.
+      room.currentIndex -= 1;
+    }
+
+    io.to(currentRoomId).emit('queue:update', { queue: room.queue, currentIndex: room.currentIndex });
+    if (removingCurrent && room.queue.length > 0) {
+      io.to(currentRoomId).emit('music:load-index', {
+        index: room.currentIndex, videoId: room.queue[room.currentIndex].videoId, updatedAt: room.updatedAt
+      });
+    }
+  });
+
+  socket.on('queue:move', ({ from, to }) => {
+    const room = rooms.get(currentRoomId);
+    if (!room) return;
+    const len = room.queue.length;
+    if (from < 0 || from >= len || to < 0 || to >= len || from === to) return;
+
+    const wasCurrent = room.currentIndex;
+    const [item] = room.queue.splice(from, 1);
+    room.queue.splice(to, 0, item);
+
+    // Keep currentIndex pointing at the same *track*, not the same slot.
+    if (wasCurrent === from) {
+      room.currentIndex = to;
+    } else if (from < wasCurrent && to >= wasCurrent) {
+      room.currentIndex -= 1;
+    } else if (from > wasCurrent && to <= wasCurrent) {
+      room.currentIndex += 1;
+    }
+
+    io.to(currentRoomId).emit('queue:update', { queue: room.queue, currentIndex: room.currentIndex });
   });
 
   // ---- Chat ----

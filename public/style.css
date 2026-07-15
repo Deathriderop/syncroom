@@ -133,6 +133,13 @@ button, input{ font-family: inherit; }
 .panel h3{ font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.8rem; font-family:'Inter'; font-weight:700;}
 
 /* ===== People / tiles ===== */
+.self-preview{
+  width:100%; aspect-ratio: 4 / 3; border-radius: var(--radius-sm);
+  overflow:hidden; background: var(--surface-2); border:1px solid var(--line);
+  margin-bottom: 0.6rem;
+}
+.self-preview video{ width:100%; height:100%; object-fit:cover; display:block; transform: scaleX(-1); }
+.self-preview.hidden{ display:none; }
 .tiles{ display:flex; flex-direction:column; gap: 0.6rem; }
 .tile{
   display:flex; align-items:center; gap: 0.6rem;
@@ -225,7 +232,17 @@ button, input{ font-family: inherit; }
   border:1px solid transparent;
 }
 .queue-list li.active{ border-color: var(--accent); color: var(--accent); }
-.queue-list li .qi{ color: var(--muted); font-variant-numeric: tabular-nums; width:1.4em; }
+.queue-list li .qi{ color: var(--muted); font-variant-numeric: tabular-nums; width:1.4em; flex-shrink:0; }
+.queue-list li .qt{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.queue-list li .q-controls{ display:flex; gap:0.25rem; flex-shrink:0; }
+.queue-list li .q-btn{
+  background:transparent; border:1px solid var(--line); color:var(--muted);
+  border-radius:6px; width:1.7em; height:1.7em; font-size:0.7rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; line-height:1;
+}
+.queue-list li .q-btn:hover:not(:disabled){ color:var(--text); border-color:var(--accent-2); }
+.queue-list li .q-btn:disabled{ opacity:0.3; cursor:default; }
+.queue-list li .q-remove:hover{ color:#e5484d; border-color:#e5484d; }
 
 /* ===== Chat ===== */
 .chat-panel{ display:flex; flex-direction:column; }
