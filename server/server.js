@@ -37,6 +37,28 @@ app.get('/api/youtube/config', (req, res) => {
   res.json({ hasServerKey: Boolean(process.env.YOUTUBE_API_KEY) });
 });
 
+// ---------------------------------------------------------------------------
+// TURN credentials — needed for calls to work once real people join from
+// different networks (STUN alone often can't punch through mobile/corporate
+// NATs). Uses a free Metered/Open Relay account if configured via env vars
+// METERED_APP_NAME + METERED_API_KEY; otherwise safely falls back to
+// STUN-only (today's behavior), so this never breaks anything on its own.
+// ---------------------------------------------------------------------------
+app.get('/api/turn-credentials', async (req, res) => {
+  const fallback = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  const apiKey = process.env.METERED_API_KEY;
+  const appName = process.env.METERED_APP_NAME;
+  if (!apiKey || !appName) return res.json(fallback);
+  try {
+    const r = await fetch(`https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`);
+    const iceServers = await r.json();
+    if (!Array.isArray(iceServers) || iceServers.length === 0) return res.json(fallback);
+    res.json({ iceServers });
+  } catch (err) {
+    res.json(fallback);
+  }
+});
+
 app.get('/api/youtube/search', async (req, res) => {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) return res.status(501).json({ error: 'no_server_key' });

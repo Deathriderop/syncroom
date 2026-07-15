@@ -48,9 +48,28 @@ let localStream = null;
 const peers = new Map(); // socketId -> { pc, name, tile, stream }
 const DRIFT_TOLERANCE = 0.6; // seconds before we force a reseek
 
-const RTC_CONFIG = {
+// ICE servers: STUN alone only helps peers find their public IP — it does
+// nothing when a direct connection genuinely can't be made (symmetric NAT,
+// mobile data, strict office/campus WiFi). A TURN server relays media in
+// those cases. We start with STUN-only so nothing breaks if no TURN is
+// configured, then upgrade to real TURN credentials if the server has them
+// (see /api/turn-credentials below) — this is very likely why calls worked
+// during local testing but fail for real people joining from other networks.
+let RTC_CONFIG = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
+(async () => {
+  try {
+    const res = await fetch('/api/turn-credentials');
+    const data = await res.json();
+    if (Array.isArray(data.iceServers) && data.iceServers.length) {
+      RTC_CONFIG = { iceServers: data.iceServers };
+      console.log('TURN-capable ICE config loaded.');
+    }
+  } catch (err) {
+    console.warn('Falling back to STUN-only ICE config:', err.message);
+  }
+})();
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -166,7 +185,13 @@ async function initLocalMedia() {
 
 micBtn.addEventListener('click', async () => {
   const on = micBtn.getAttribute('data-on') === 'true';
-  if (!localStream || localStream.getAudioTracks().length === 0) await initLocalMedia();
+  if (!on) {
+    if (!localStream || localStream.getAudioTracks().length === 0) await initLocalMedia();
+    if (localStream.getAudioTracks().length === 0) {
+      alert('Microphone access was blocked or denied. Click the padlock/site-info icon in your address bar, allow microphone access, then try again.');
+      return;
+    }
+  }
   localStream.getAudioTracks().forEach(t => (t.enabled = !on));
   micBtn.setAttribute('data-on', String(!on));
   socket.emit('presence:update', { mic: !on });
