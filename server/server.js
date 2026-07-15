@@ -244,6 +244,18 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('queue:prev', () => {
+    const room = rooms.get(currentRoomId);
+    if (!room || room.queue.length === 0) return;
+    room.currentIndex = (room.currentIndex - 1 + room.queue.length) % room.queue.length;
+    room.isPlaying = true;
+    room.position = 0;
+    room.updatedAt = Date.now();
+    io.to(currentRoomId).emit('music:load-index', {
+      index: room.currentIndex, videoId: room.queue[room.currentIndex].videoId, updatedAt: room.updatedAt
+    });
+  });
+
   // ---- Chat ----
   socket.on('chat:message', ({ text }) => {
     const room = rooms.get(currentRoomId);

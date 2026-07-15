@@ -99,7 +99,10 @@ const copyLinkBtn = document.getElementById('copy-link-btn');
 const vinyl = document.getElementById('vinyl');
 const dialOrbit = document.getElementById('dial-orbit');
 const nowPlayingTitle = document.getElementById('now-playing-title');
+const prevBtn = document.getElementById('prev-btn');
+const skipBackBtn = document.getElementById('skip-back-btn');
 const playPauseBtn = document.getElementById('play-pause-btn');
+const skipForwardBtn = document.getElementById('skip-forward-btn');
 const nextBtn = document.getElementById('next-btn');
 const seekBar = document.getElementById('seek-bar');
 const unlockAudioBtn = document.getElementById('unlock-audio-btn');
@@ -351,6 +354,7 @@ function renderMyTile() {
   let tile = document.getElementById(`tile-${myId}`);
   const mic = micBtn.getAttribute('data-on') === 'true';
   const cam = camBtn.getAttribute('data-on') === 'true';
+  const videoTrack = localStream?.getVideoTracks()[0];
   if (!tile) {
     tile = document.createElement('div');
     tile.id = `tile-${myId}`;
@@ -359,11 +363,15 @@ function renderMyTile() {
   }
   tile.classList.toggle('speaking', mic);
   tile.innerHTML = `
-    <div class="avatar">${initials(myName)}</div>
+    ${videoTrack ? '<video autoplay playsinline muted></video>' : `<div class="avatar">${initials(myName)}</div>`}
     <div class="who">
       <span class="name">${escapeHtml(myName)} (you)</span>
       <span class="status">${mic ? '🎙️ live' : 'muted'}${cam ? ' · cam on' : ''}</span>
     </div>`;
+  if (videoTrack) {
+    // Muted, since this is our own camera — we don't want to hear our own echo.
+    tile.querySelector('video').srcObject = new MediaStream([videoTrack]);
+  }
 }
 
 function renderPeerTile(id) {
@@ -380,8 +388,10 @@ function renderPeerTile(id) {
   }
   tile.classList.toggle('speaking', !!m?.mic);
   const videoTrack = entry?.stream.getVideoTracks()[0];
+  const audioTrack = entry?.stream.getAudioTracks()[0];
   tile.innerHTML = `
     ${videoTrack ? '<video autoplay playsinline></video>' : `<div class="avatar">${initials(name)}</div>`}
+    <audio autoplay></audio>
     <div class="who">
       <span class="name">${escapeHtml(name)}</span>
       <span class="status">${m?.mic ? '🎙️ live' : 'muted'}${m?.cam ? ' · cam on' : ''}</span>
@@ -389,6 +399,13 @@ function renderPeerTile(id) {
   if (videoTrack) {
     const videoEl = tile.querySelector('video');
     videoEl.srcObject = new MediaStream([videoTrack]);
+  }
+  // The peer's audio track arrives over WebRTC the same way video does, but
+  // it needs its own playable element — a <video> element with no matching
+  // <audio> silently drops the audio track entirely, which is why mic input
+  // was never actually heard even though it reached the browser fine.
+  if (audioTrack) {
+    tile.querySelector('audio').srcObject = new MediaStream([audioTrack]);
   }
 }
 
@@ -496,7 +513,32 @@ playPauseBtn.addEventListener('click', () => {
     isPlayingState = true;
     lastKnownSync = { position: pos, updatedAt: Date.now() };
     ytPlayer.unMute();
+    ytPlayer.playVideo();
+    vinyl.classList.add('spinning');
+    updatePlayPauseIcon(true);
+    socket.emit('music:play', { position: pos });
+  }
+});
+
+prevBtn.addEventListener('click', () => socket.emit('queue:prev'));
 nextBtn.addEventListener('click', () => socket.emit('queue:next'));
+
+// ±10s skip: act locally/synchronously first (same user-gesture-audio
+// reasoning as play/pause above), then broadcast the resulting position.
+skipBackBtn.addEventListener('click', () => {
+  if (!ytPlayer || currentIndex === -1) return;
+  const target = Math.max(0, ytPlayer.getCurrentTime() - 10);
+  ytPlayer.seekTo(target, true);
+  socket.emit('music:seek', { position: target });
+});
+
+skipForwardBtn.addEventListener('click', () => {
+  if (!ytPlayer || currentIndex === -1) return;
+  const duration = ytPlayer.getDuration() || Infinity;
+  const target = Math.min(duration, ytPlayer.getCurrentTime() + 10);
+  ytPlayer.seekTo(target, true);
+  socket.emit('music:seek', { position: target });
+});
 
 seekBar.addEventListener('change', () => {
   if (!ytPlayer) return;

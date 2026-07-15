@@ -149,6 +149,7 @@ button, input{ font-family: inherit; }
 .tile .who .name{ font-size: 0.9rem; }
 .tile .who .status{ font-size: 0.72rem; color: var(--muted); }
 .tile video{ width:34px; height:34px; border-radius:50%; object-fit:cover; }
+.tile audio{ display:none; }
 
 .call-controls{ display:flex; gap: 0.6rem; margin-top: 1rem; }
 .control-btn{
