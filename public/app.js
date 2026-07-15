@@ -44,6 +44,13 @@ let isPlayingState = false;
 // actually reaches the PLAYING state, correct against real elapsed time.
 let pendingSync = null;
 
+// Unlike pendingSync (which only exists briefly during a play/seek/load
+// transition), lastKnownSync is the ongoing "source of truth" timeline
+// while a track is simply playing. Small clock/decoder differences between
+// devices accumulate minute to minute even when nothing else happens, so we
+// keep this around to periodically re-check against, not just at transitions.
+let lastKnownSync = null; // { position, updatedAt } or null while paused
+
 let localStream = null;
 const peers = new Map(); // socketId -> { pc, name, tile, stream }
 const DRIFT_TOLERANCE = 0.6; // seconds before we force a reseek
@@ -431,6 +438,7 @@ function applyLoad(videoId, position, playing, updatedAt) {
   // per client, so once it's actually playing we correct against the true
   // elapsed time since the server's timestamp, not just our upfront guess.
   pendingSync = playing ? { position, updatedAt } : null;
+  lastKnownSync = playing ? { position, updatedAt } : null;
 }
 
 function onPlayerStateChange(e) {
@@ -479,20 +487,15 @@ playPauseBtn.addEventListener('click', () => {
   pendingSync = null; // this client is acting locally/synchronously, no estimate to correct
   if (isPlayingState) {
     isPlayingState = false;
+    lastKnownSync = null;
     ytPlayer.pauseVideo();
     vinyl.classList.remove('spinning');
     updatePlayPauseIcon(false);
     socket.emit('music:pause', { position: pos });
   } else {
     isPlayingState = true;
+    lastKnownSync = { position: pos, updatedAt: Date.now() };
     ytPlayer.unMute();
-    ytPlayer.playVideo();
-    vinyl.classList.add('spinning');
-    updatePlayPauseIcon(true);
-    socket.emit('music:play', { position: pos });
-  }
-});
-
 nextBtn.addEventListener('click', () => socket.emit('queue:next'));
 
 seekBar.addEventListener('change', () => {
@@ -513,6 +516,7 @@ socket.on('music:play', ({ position, updatedAt }) => {
     // the server's original timestamp and correct once PLAYING actually
     // fires (see onPlayerStateChange).
     pendingSync = { position, updatedAt };
+    lastKnownSync = { position, updatedAt };
   }
   vinyl.classList.add('spinning');
   updatePlayPauseIcon(true);
@@ -521,6 +525,7 @@ socket.on('music:play', ({ position, updatedAt }) => {
 socket.on('music:pause', ({ position }) => {
   isPlayingState = false;
   pendingSync = null; // a pause cancels any correction that was waiting on PLAYING
+  lastKnownSync = null; // a pause cancels any correction that was waiting on PLAYING
   if (ytPlayer) {
     ytPlayer.seekTo(position, true);
     ytPlayer.pauseVideo();
@@ -536,6 +541,7 @@ socket.on('music:seek', ({ position, updatedAt }) => {
   // Seeking while playing re-triggers buffering too, so the same
   // buffer-then-correct handling applies here.
   pendingSync = isPlayingState ? { position, updatedAt } : null;
+  lastKnownSync = isPlayingState ? { position, updatedAt } : null;
 });
 
 socket.on('music:load-index', ({ index, videoId, updatedAt }) => {
@@ -556,6 +562,10 @@ function updatePlayPauseIcon(playing) {
 }
 
 // Periodic drift correction + progress bar update
+// Progress bar update (every 500ms) + real periodic drift correction
+// (every ~8s) so small per-device timing differences don't quietly grow
+// over the course of a track — not just at play/pause/seek/load moments.
+let driftCheckCounter = 0;
 setInterval(() => {
   if (!ytPlayer || !ytPlayer.getCurrentTime || currentIndex === -1) return;
   const duration = ytPlayer.getDuration() || 0;
@@ -564,6 +574,18 @@ setInterval(() => {
     seekBar.value = Math.min(100, (current / duration) * 100);
     timeCurrent.textContent = formatTime(current);
     timeDuration.textContent = formatTime(duration);
+  }
+
+  driftCheckCounter++;
+  if (driftCheckCounter < 16) return; // ~8s at 500ms/tick
+  driftCheckCounter = 0;
+
+  if (pendingSync || !isPlayingState || !lastKnownSync) return;
+  if (ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) return;
+
+  const target = lastKnownSync.position + (Date.now() - lastKnownSync.updatedAt) / 1000;
+  if (Math.abs(current - target) > DRIFT_TOLERANCE) {
+    ytPlayer.seekTo(target, true);
   }
 }, 500);
 
