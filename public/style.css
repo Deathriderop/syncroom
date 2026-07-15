@@ -134,28 +134,43 @@ button, input{ font-family: inherit; }
 
 /* ===== People / tiles ===== */
 .self-preview{
-  width:100%; aspect-ratio: 4 / 3; border-radius: var(--radius-sm);
+  width: min(100%, var(--self-preview-w)); aspect-ratio: 4 / 3; border-radius: var(--radius-sm);
   overflow:hidden; background: var(--surface-2); border:1px solid var(--line);
   margin-bottom: 0.6rem;
 }
 .self-preview video{ width:100%; height:100%; object-fit:cover; display:block; transform: scaleX(-1); }
 .self-preview.hidden{ display:none; }
-.tiles{ display:flex; flex-direction:column; gap: 0.6rem; }
+
+.video-size-control{
+  display:flex; align-items:center; gap:0.5rem; margin-bottom:0.7rem;
+  font-size:0.75rem; color:var(--muted);
+}
+.video-size-control input[type="range"]{ flex:1; accent-color: var(--accent-2); touch-action: manipulation; }
+:root{
+  /* Both the self preview and every participant tile read their size from
+     these two variables, so one control (the slider below) resizes all
+     video previews together — on mobile and desktop alike, since the
+     underlying <input type="range"> already handles touch and mouse drag
+     identically with no custom code needed. */
+  --tile-size: 88px;
+  --self-preview-w: 260px;
+}
+.tiles{ display:flex; flex-wrap:wrap; gap: 0.6rem; }
 .tile{
-  display:flex; align-items:center; gap: 0.6rem;
-  background: var(--surface-2); border-radius: var(--radius-sm); padding: 0.55rem 0.7rem;
-  border: 1px solid transparent;
+  display:flex; flex-direction:column; align-items:center; gap:0.35rem;
+  background: var(--surface-2); border-radius: var(--radius-sm); padding:0.5rem;
+  border: 1px solid transparent; width: calc(var(--tile-size) + 0.9rem);
 }
 .tile.speaking{ border-color: var(--accent-2); box-shadow: 0 0 0 3px var(--accent-2-soft); }
 .tile .avatar{
-  width: 34px; height:34px; border-radius:50%; background: var(--surface); display:flex; align-items:center; justify-content:center;
-  font-weight:700; font-size:0.85rem; color: var(--text); flex-shrink:0;
+  width: var(--tile-size); height: var(--tile-size); border-radius:50%; background: var(--surface); display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size: calc(var(--tile-size) * 0.32); color: var(--text); flex-shrink:0;
   border: 1px solid var(--line);
 }
-.tile .who{ display:flex; flex-direction:column; line-height:1.2; }
-.tile .who .name{ font-size: 0.9rem; }
-.tile .who .status{ font-size: 0.72rem; color: var(--muted); }
-.tile video{ width:34px; height:34px; border-radius:50%; object-fit:cover; }
+.tile .who{ display:flex; flex-direction:column; line-height:1.2; align-items:center; text-align:center; max-width: calc(var(--tile-size) + 0.6rem); }
+.tile .who .name{ font-size: 0.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.tile .who .status{ font-size: 0.68rem; color: var(--muted); }
+.tile video{ width: var(--tile-size); height: var(--tile-size); border-radius: 14px; object-fit:cover; }
 .tile audio{ display:none; }
 
 .call-controls{ display:flex; gap: 0.6rem; margin-top: 1rem; }
@@ -209,7 +224,7 @@ button, input{ font-family: inherit; }
 .add-track-form{ display:flex; gap:0.5rem; width:100%; max-width:420px; margin-top:1.2rem; }
 .add-track-form input{
   flex:1; background: var(--surface-2); border:1px solid var(--line); color:var(--text);
-  padding:0.6rem 0.8rem; border-radius: var(--radius-sm); font-size:0.9rem;
+  padding:0.6rem 0.8rem; border-radius: var(--radius-sm); font-size:16px;
 }
 
 .search-results{ width:100%; max-width:420px; display:flex; flex-direction:column; gap:0.4rem; margin-top:0.6rem; max-height: 260px; overflow-y:auto; }
@@ -225,6 +240,7 @@ button, input{ font-family: inherit; }
 
 .queue-wrap{ width:100%; max-width:420px; margin-top:1.2rem; }
 .queue-wrap h4{ font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.5rem; }
+.queue-hint{ margin: -0.3rem 0 0.6rem; }
 .queue-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:0.4rem; }
 .queue-list li{
   display:flex; align-items:center; gap:0.6rem; background: var(--surface-2);
@@ -252,7 +268,7 @@ button, input{ font-family: inherit; }
 .chat-form{ display:flex; gap:0.5rem; }
 .chat-form input{
   flex:1; background: var(--surface-2); border:1px solid var(--line); color:var(--text);
-  padding:0.6rem 0.8rem; border-radius: var(--radius-sm); font-size:0.85rem;
+  padding:0.6rem 0.8rem; border-radius: var(--radius-sm); font-size:16px;
 }
 
 /* ===== Responsive: tablet & mobile ===== */
@@ -262,6 +278,8 @@ button, input{ font-family: inherit; }
   .player-panel{ order:1; }
   .chat-panel{ order:3; min-height: 320px; }
   .panel{ overflow-y: visible; }
+  :root{ --tile-size: 96px; } /* the default 88px reads small once a whole phone screen is available */
+  .queue-list li .q-btn{ width:2.1em; height:2.1em; font-size:0.8rem; } /* bigger tap target than the desktop 1.7em */
 }
 @media (max-width: 560px){
   .join-card{ padding:1.4rem; }

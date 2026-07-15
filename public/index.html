@@ -74,6 +74,10 @@
       <div id="self-preview" class="self-preview hidden">
         <video id="self-preview-video" autoplay playsinline muted></video>
       </div>
+      <div class="video-size-control">
+        <span>🔍</span>
+        <input type="range" id="video-size-slider" min="60" max="200" value="88" step="2" title="Resize video previews">
+      </div>
       <div id="tiles" class="tiles"></div>
       <div class="call-controls">
         <button id="mic-btn" class="control-btn" data-on="false" title="Toggle microphone">
@@ -130,6 +134,7 @@
 
       <div class="queue-wrap">
         <h4>Queue</h4>
+        <p class="muted small queue-hint">Anyone in the room can play, skip, add, remove, and reorder tracks.</p>
         <ol id="queue-list" class="queue-list"></ol>
       </div>
     </section>

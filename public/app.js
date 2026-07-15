@@ -132,6 +132,7 @@ const micBtn = document.getElementById('mic-btn');
 const camBtn = document.getElementById('cam-btn');
 const selfPreview = document.getElementById('self-preview');
 const selfPreviewVideo = document.getElementById('self-preview-video');
+const videoSizeSlider = document.getElementById('video-size-slider');
 const leaveBtn = document.getElementById('leave-btn');
 const copyLinkBtn = document.getElementById('copy-link-btn');
 
@@ -283,6 +284,26 @@ camBtn.addEventListener('click', async () => {
   camBtn.setAttribute('data-on', String(!on));
   socket.emit('presence:update', { cam: !on });
   renderMyTile();
+});
+
+// ---------------------------------------------------------------------------
+// Resizable video previews — one slider drives both the self-preview and
+// every participant tile via CSS variables, so "resize" works identically
+// with mouse drag on desktop and touch drag on mobile (native range inputs
+// already handle both), no custom pointer-tracking code needed.
+// ---------------------------------------------------------------------------
+function applyVideoSize(tileSize) {
+  const root = document.documentElement.style;
+  root.setProperty('--tile-size', `${tileSize}px`);
+  root.setProperty('--self-preview-w', `${tileSize * 2.9}px`);
+}
+const savedVideoSize = parseInt(localStorage.getItem('syncroom_video_size'), 10);
+const initialVideoSize = Number.isFinite(savedVideoSize) ? savedVideoSize : Number(videoSizeSlider.value);
+videoSizeSlider.value = initialVideoSize;
+applyVideoSize(initialVideoSize);
+videoSizeSlider.addEventListener('input', () => {
+  applyVideoSize(videoSizeSlider.value);
+  localStorage.setItem('syncroom_video_size', videoSizeSlider.value);
 });
 
 // ---------------------------------------------------------------------------
