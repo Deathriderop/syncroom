@@ -197,7 +197,11 @@ io.on('connection', (socket) => {
     room.isPlaying = true;
     room.position = position;
     room.updatedAt = Date.now();
-    io.to(currentRoomId).emit('music:play', { position, updatedAt: room.updatedAt });
+    // socket.to (not io.to): the sender already applied this play locally
+    // and synchronously inside their own click handler. Echoing it back
+    // to them too just re-triggers a second, latency-skewed seek/play on
+    // their own player a moment later, causing a visible stutter.
+    socket.to(currentRoomId).emit('music:play', { position, updatedAt: room.updatedAt });
   });
 
   socket.on('music:pause', ({ position }) => {
@@ -206,7 +210,7 @@ io.on('connection', (socket) => {
     room.isPlaying = false;
     room.position = position;
     room.updatedAt = Date.now();
-    io.to(currentRoomId).emit('music:pause', { position, updatedAt: room.updatedAt });
+    socket.to(currentRoomId).emit('music:pause', { position, updatedAt: room.updatedAt });
   });
 
   socket.on('music:seek', ({ position }) => {
@@ -214,7 +218,10 @@ io.on('connection', (socket) => {
     if (!room) return;
     room.position = position;
     room.updatedAt = Date.now();
-    io.to(currentRoomId).emit('music:seek', { position, updatedAt: room.updatedAt });
+    // Same reasoning: every client that emits music:seek (skip ±10s, seek
+    // bar drag) now performs the seek locally first (see app.js), so this
+    // broadcast only needs to reach everyone else.
+    socket.to(currentRoomId).emit('music:seek', { position, updatedAt: room.updatedAt });
   });
 
   socket.on('music:load-index', ({ index }) => {

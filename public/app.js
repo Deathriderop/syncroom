@@ -639,6 +639,7 @@ seekBar.addEventListener('change', () => {
   if (!ytPlayer) return;
   const duration = ytPlayer.getDuration() || 0;
   const pos = (seekBar.value / 100) * duration;
+  ytPlayer.seekTo(pos, true);
   socket.emit('music:seek', { position: pos });
 });
 

@@ -249,9 +249,10 @@ button, input{ font-family: inherit; }
 .self-preview.hidden{ display:none; }
 
 .video-size-control{
-  display:flex; align-items:center; gap:0.5rem; margin-bottom:0.8rem;
+  display:flex; align-items:center; gap:0.5rem; margin-top:0.8rem;
   font-size:0.75rem; color:var(--muted);
 }
+.video-size-control label{ white-space:nowrap; }
 .video-size-control input[type="range"]{ flex:1; accent-color: var(--accent-2); touch-action: manipulation; height: 1.4rem; }
 :root{
   /* Both the self preview and every participant tile read their size from
@@ -415,11 +416,11 @@ button, input{ font-family: inherit; }
   .brand-showcase{ display:none; }
   .join-card-wrap{ padding: 2.2rem 1.8rem; }
 
-  .room-body{ grid-template-columns: 1fr; grid-template-rows: auto auto auto; overflow-y:auto; }
+  .room-body{ display:flex; flex-direction:column; overflow-y:auto; }
   .people-panel{ order:2; }
   .player-panel{ order:1; }
   .chat-panel{ order:3; min-height: 340px; }
-  .panel{ overflow-y: visible; }
+  .panel{ overflow-y: visible; flex-shrink:0; }
   :root{ --tile-size: 96px; } /* the default 88px reads small once a whole phone screen is available */
   .queue-list li .q-btn{ width:2.1em; height:2.1em; font-size:0.8rem; } /* bigger tap target than the desktop 1.8em */
 }
