@@ -3,52 +3,94 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B0A14">
 <title>SyncRoom — listen, talk, watch. together.</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <!-- ===================== JOIN SCREEN ===================== -->
 <main id="join-screen" class="screen join-screen">
-  <div class="join-card">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 48 48" width="36" height="36">
-          <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
-          <circle cx="24" cy="24" r="3.2" fill="currentColor"/>
-          <circle cx="24" cy="6.5" r="2.4" fill="currentColor"/>
-          <circle cx="24" cy="41.5" r="2.4" fill="currentColor" opacity="0.4"/>
-          <circle cx="41.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
-          <circle cx="6.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
-        </svg>
-      </span>
-      <h1>SyncRoom</h1>
-    </div>
-    <p class="tagline">One room. Same track, same beat, same call.</p>
+  <div class="join-shell">
 
-    <form id="join-form">
-      <label class="field">
-        <span>Your name</span>
-        <input type="text" id="name-input" placeholder="e.g. Priya" maxlength="24" required autocomplete="off">
-      </label>
-      <label class="field">
-        <span>Room code</span>
-        <div class="room-code-row">
-          <input type="text" id="room-input" placeholder="e.g. sunset-lounge" maxlength="32" required autocomplete="off">
-          <button type="button" id="generate-code-btn" title="Generate a room code">⟳</button>
+    <!-- Left: brand showcase (desktop storytelling panel, condenses on mobile) -->
+    <section class="brand-showcase" aria-hidden="true">
+      <div class="showcase-glow"></div>
+      <div class="showcase-content">
+        <div class="brand">
+          <span class="brand-mark">
+            <svg viewBox="0 0 48 48" width="34" height="34">
+              <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+              <circle cx="24" cy="24" r="3.2" fill="currentColor"/>
+              <circle cx="24" cy="6.5" r="2.4" fill="currentColor"/>
+              <circle cx="24" cy="41.5" r="2.4" fill="currentColor" opacity="0.4"/>
+              <circle cx="41.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
+              <circle cx="6.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
+            </svg>
+          </span>
+          <span class="brand-word">SyncRoom</span>
         </div>
-      </label>
-      <button type="submit" class="primary-btn">Enter room</button>
-    </form>
+        <h1 class="showcase-title">One room.<br>Same track,<br><em>same beat.</em></h1>
+        <p class="showcase-copy">Queue a song, hop on camera, and watch it land in everyone's ears at the exact same millisecond — no "wait, pause it" required.</p>
+        <ul class="showcase-features">
+          <li><span class="sf-dot sf-dot-a"></span>Perfectly synced playback</li>
+          <li><span class="sf-dot sf-dot-b"></span>Live voice &amp; video, built in</li>
+          <li><span class="sf-dot sf-dot-c"></span>Anyone can queue, no host needed</li>
+        </ul>
+        <div class="showcase-vinyl" aria-hidden="true">
+          <div class="sv-ring sv-ring-1"></div>
+          <div class="sv-ring sv-ring-2"></div>
+          <div class="sv-ring sv-ring-3"></div>
+          <div class="sv-core"></div>
+        </div>
+      </div>
+    </section>
 
-    <details class="api-key-details">
-      <summary>YouTube API key <span class="muted">(only needed to import playlists)</span></summary>
-      <p class="muted small" id="server-key-status">Checking whether this room already has a shared key…</p>
-      <input type="password" id="yt-api-key-input" placeholder="AIza...">
-    </details>
+    <!-- Right: the actual join card -->
+    <section class="join-card-wrap">
+      <div class="join-card">
+        <div class="brand brand-compact">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="30" height="30">
+              <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+              <circle cx="24" cy="24" r="3.2" fill="currentColor"/>
+              <circle cx="24" cy="6.5" r="2.4" fill="currentColor"/>
+              <circle cx="24" cy="41.5" r="2.4" fill="currentColor" opacity="0.4"/>
+              <circle cx="41.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
+              <circle cx="6.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
+            </svg>
+          </span>
+          <h1>SyncRoom</h1>
+        </div>
+        <p class="tagline">One room. Same track, same beat, same call.</p>
+
+        <form id="join-form">
+          <label class="field">
+            <span>Your name</span>
+            <input type="text" id="name-input" placeholder="e.g. Priya" maxlength="24" required autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Room code</span>
+            <div class="room-code-row">
+              <input type="text" id="room-input" placeholder="e.g. sunset-lounge" maxlength="32" required autocomplete="off">
+              <button type="button" id="generate-code-btn" title="Generate a room code">⟳</button>
+            </div>
+          </label>
+          <button type="submit" class="primary-btn primary-btn-block">Enter room</button>
+        </form>
+
+        <details class="api-key-details">
+          <summary>YouTube API key <span class="muted">(only needed to import playlists)</span></summary>
+          <p class="muted small" id="server-key-status">Checking whether this room already has a shared key…</p>
+          <input type="password" id="yt-api-key-input" placeholder="AIza...">
+        </details>
+      </div>
+      <p class="join-foot muted small">Works in any modern browser — desktop, iOS, or Android.</p>
+    </section>
+
   </div>
 </main>
 
@@ -70,7 +112,7 @@
 
     <!-- Left: people + call tiles -->
     <section class="panel people-panel">
-      <h3>In the room</h3>
+      <h3><span class="panel-eyebrow-dot"></span>In the room</h3>
       <div id="self-preview" class="self-preview hidden">
         <video id="self-preview-video" autoplay playsinline muted></video>
       </div>
@@ -92,6 +134,7 @@
     <!-- Center: the dial + player -->
     <section class="panel player-panel">
       <div class="dial-wrap">
+        <div class="dial-halo" aria-hidden="true"></div>
         <svg id="dial-orbit" viewBox="0 0 320 320" class="dial-orbit"></svg>
         <div id="vinyl" class="vinyl">
           <div class="vinyl-ring"></div>
@@ -141,7 +184,7 @@
 
     <!-- Right: chat -->
     <section class="panel chat-panel">
-      <h3>Chat</h3>
+      <h3><span class="panel-eyebrow-dot"></span>Chat</h3>
       <div id="chat-log" class="chat-log"></div>
       <form id="chat-form" class="chat-form">
         <input type="text" id="chat-input" placeholder="Say something…" maxlength="500" autocomplete="off">
