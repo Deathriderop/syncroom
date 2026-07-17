@@ -54,8 +54,8 @@ let lastKnownSync = null; // { position, updatedAt } or null while paused
 
 let localStream = null;
 const peers = new Map(); // socketId -> { pc, name, tile, stream }
-const DRIFT_TOLERANCE = 0.6; // seconds of drift before we nudge playback rate
-const HARD_RESEEK_TOLERANCE = 1.5; // seconds of drift before we force a jump-cut seek
+const DRIFT_TOLERANCE = 1.0; // seconds of drift before we nudge playback rate — below this, drift is inaudible/harmless in casual group listening, so we leave the rate alone entirely
+const HARD_RESEEK_TOLERANCE = 2.5; // seconds of drift before we force a jump-cut seek
 
 // ---------------------------------------------------------------------------
 // Clock sync
@@ -588,9 +588,15 @@ function reconcilePosition(target) {
     ytPlayer.seekTo(target, true);
     ytPlayer.setPlaybackRate(1);
   } else if (absDiff > DRIFT_TOLERANCE) {
-    ytPlayer.setPlaybackRate(diff > 0 ? 1.1 : 0.9);
+    // ±3% instead of the old ±10%: a 10% rate change is an audible pitch
+    // shift (~1.7 semitones) since the embedded YouTube player has no
+    // pitch-preserving time-stretch — every periodic correction was subtly
+    // detuning the track, which is what read as "quality got worse". ±3%
+    // (~0.5 semitone) is effectively inaudible; we run it longer (6s vs 2s)
+    // so it still closes a meaningful chunk of the gap each time.
+    ytPlayer.setPlaybackRate(diff > 0 ? 1.03 : 0.97);
     clearTimeout(rateNudgeTimeout);
-    rateNudgeTimeout = setTimeout(() => ytPlayer.setPlaybackRate(1), 2000);
+    rateNudgeTimeout = setTimeout(() => ytPlayer.setPlaybackRate(1), 6000);
   }
 }
 // --- unlock audio for this tab (browsers block unmuted programmatic
