@@ -355,6 +355,8 @@ button, input{ font-family: inherit; }
 .add-track-form input:focus{ border-color: var(--accent-2); }
 
 .search-results{ width:100%; max-width:420px; display:flex; flex-direction:column; gap:0.4rem; margin-top:0.6rem; max-height: 260px; overflow-y:auto; }
+.search-results-close-row{ display:flex; justify-content:flex-end; }
+.search-results-close-row .sr-close{ font-size:0.75rem; padding:0.35rem 0.7rem; }
 .search-result-item{
   display:flex; align-items:center; gap:0.6rem; background: var(--surface-2-soft);
   border-radius: var(--radius-sm); padding:0.45rem; border:1px solid var(--line);

@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 const socket = io();
 let myId = null;
+let currentHostId = null;
 let roomId = null;
 let myName = null;
 
@@ -385,6 +386,7 @@ let membersById = new Map(); // id -> {name, mic, cam}
 
 socket.on('room-state', (state) => {
   myId = socket.id;
+  currentHostId = state.hostId;
   queue = state.queue;
   currentIndex = state.currentIndex;
   isPlayingState = state.isPlaying;
@@ -405,6 +407,14 @@ socket.on('room-state', (state) => {
       // Nothing to do here — just make sure we render their tile.
     }
   });
+});
+
+// Kept up to date so exactly one client (the host) drives auto-advance
+// when a track ends — see onPlayerStateChange. Without a single owner,
+// every client in the room would each call queue:next on the same ended
+// track and the queue would skip ahead by one track per listener.
+socket.on('host:update', ({ hostId }) => {
+  currentHostId = hostId;
 });
 
 socket.on('presence:update', ({ id, mic, cam }) => {
@@ -524,6 +534,7 @@ function applyLoad(videoId, position, playing, updatedAt) {
   vinyl.classList.toggle('spinning', playing);
   nowPlayingTitle.textContent = (queue[currentIndex] && queue[currentIndex].title) || videoId;
   updatePlayPauseIcon(playing);
+  updateMediaSessionMetadata();
 
   // startAt was only an estimate (server position + elapsed network time).
   // Loading/buffering the new video takes additional real time that varies
@@ -548,6 +559,15 @@ function onPlayerStateChange(e) {
     const target = Math.max(0, position + trueElapsed);
     reconcilePosition(target);
     pendingSync = null;
+  }
+
+  // Auto-advance when the track finishes. Only the host emits queue:next
+  // here — every client in the room gets an ENDED event for the same
+  // track at roughly the same moment, so without a single owner they'd
+  // each request the next track and the queue would jump ahead multiple
+  // songs instead of one.
+  if (e.data === YT.PlayerState.ENDED && myId && myId === currentHostId) {
+    socket.emit('queue:next');
   }
 }
 
@@ -590,7 +610,10 @@ unlockAudioBtn.addEventListener('click', () => {
 });
 
 // --- transport controls (any participant can control playback) ---
-playPauseBtn.addEventListener('click', () => {
+// Named functions (not just inline listeners) so the Media Session handlers
+// below — which power lock-screen / notification controls for background
+// playback — can trigger the exact same logic as tapping the on-screen buttons.
+function togglePlayPause() {
   if (!ytPlayer || currentIndex === -1) return;
   const pos = ytPlayer.getCurrentTime();
   // Act locally, synchronously, inside the click — don't wait on the
@@ -613,27 +636,60 @@ playPauseBtn.addEventListener('click', () => {
     updatePlayPauseIcon(true);
     socket.emit('music:play', { position: pos });
   }
-});
-
-prevBtn.addEventListener('click', () => socket.emit('queue:prev'));
-nextBtn.addEventListener('click', () => socket.emit('queue:next'));
+}
+function goToPrevTrack() { socket.emit('queue:prev'); }
+function goToNextTrack() { socket.emit('queue:next'); }
 
 // ±10s skip: act locally/synchronously first (same user-gesture-audio
 // reasoning as play/pause above), then broadcast the resulting position.
-skipBackBtn.addEventListener('click', () => {
+function skipBack10() {
   if (!ytPlayer || currentIndex === -1) return;
   const target = Math.max(0, ytPlayer.getCurrentTime() - 10);
   ytPlayer.seekTo(target, true);
   socket.emit('music:seek', { position: target });
-});
-
-skipForwardBtn.addEventListener('click', () => {
+}
+function skipForward10() {
   if (!ytPlayer || currentIndex === -1) return;
   const duration = ytPlayer.getDuration() || Infinity;
   const target = Math.min(duration, ytPlayer.getCurrentTime() + 10);
   ytPlayer.seekTo(target, true);
   socket.emit('music:seek', { position: target });
-});
+}
+
+playPauseBtn.addEventListener('click', togglePlayPause);
+prevBtn.addEventListener('click', goToPrevTrack);
+nextBtn.addEventListener('click', goToNextTrack);
+skipBackBtn.addEventListener('click', skipBack10);
+skipForwardBtn.addEventListener('click', skipForward10);
+
+// --- Media Session: lock-screen / notification-shade controls, and the
+// signal mobile browsers use to decide "this tab has an active media
+// player, don't suspend its audio when backgrounded". Without this, the
+// browser has no way of knowing the 1x1 hidden YouTube iframe is actually
+// a music player the user cares about.
+function updateMediaSessionMetadata() {
+  if (!('mediaSession' in navigator)) return;
+  const track = queue[currentIndex];
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: (track && track.title) || 'Nothing queued yet',
+    artist: roomId ? `SyncRoom · ${roomId}` : 'SyncRoom',
+  });
+}
+if ('mediaSession' in navigator) {
+  navigator.mediaSession.setActionHandler('play', togglePlayPause);
+  navigator.mediaSession.setActionHandler('pause', togglePlayPause);
+  navigator.mediaSession.setActionHandler('previoustrack', goToPrevTrack);
+  navigator.mediaSession.setActionHandler('nexttrack', goToNextTrack);
+  navigator.mediaSession.setActionHandler('seekbackward', skipBack10);
+  navigator.mediaSession.setActionHandler('seekforward', skipForward10);
+  // Some Android/desktop UIs expose a scrubber on the lock screen / notification
+  // itself rather than fixed ±10s buttons — support that too when offered.
+  navigator.mediaSession.setActionHandler('seekto', (details) => {
+    if (!ytPlayer || details.seekTime == null) return;
+    ytPlayer.seekTo(details.seekTime, true);
+    socket.emit('music:seek', { position: details.seekTime });
+  });
+}
 
 seekBar.addEventListener('change', () => {
   if (!ytPlayer) return;
@@ -697,6 +753,9 @@ socket.on('queue:update', ({ queue: q, currentIndex: ci }) => {
 
 function updatePlayPauseIcon(playing) {
   playPauseBtn.textContent = playing ? '⏸' : '▶';
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+  }
 }
 
 // Periodic drift correction + progress bar update
@@ -915,6 +974,13 @@ function renderSearchResults(items) {
     return;
   }
   searchResultsEl.innerHTML = '';
+
+  const closeRow = document.createElement('div');
+  closeRow.className = 'search-results-close-row';
+  closeRow.innerHTML = `<button type="button" class="ghost-btn sr-close">Close results</button>`;
+  closeRow.querySelector('.sr-close').addEventListener('click', clearSearch);
+  searchResultsEl.appendChild(closeRow);
+
   items.forEach(item => {
     const row = document.createElement('div');
     row.className = 'search-result-item';
@@ -928,9 +994,18 @@ function renderSearchResults(items) {
     `;
     row.querySelector('.sr-add').addEventListener('click', () => {
       socket.emit('queue:add', { videoId: item.videoId, title: item.title });
+      // Once a track's been picked, the search UI has done its job —
+      // clear it out instead of leaving stale results sitting there
+      // permanently with no way to get rid of them.
+      clearSearch();
     });
     searchResultsEl.appendChild(row);
   });
+}
+
+function clearSearch() {
+  searchResultsEl.innerHTML = '';
+  searchInput.value = '';
 }
 
 // ---------------------------------------------------------------------------

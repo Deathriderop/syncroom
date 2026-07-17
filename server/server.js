@@ -373,6 +373,9 @@ io.on('connection', (socket) => {
     if (room.hostId === socket.id) {
       const next = room.members.keys().next();
       room.hostId = next.done ? null : next.value;
+      // Tell whoever's left who the new host is, since it's used client-side
+      // to decide who drives auto-advance-to-next-track (see queue:next below).
+      io.to(currentRoomId).emit('host:update', { hostId: room.hostId });
     }
     socket.to(currentRoomId).emit('peer-left', { id: socket.id });
     cleanupEmptyRoom(currentRoomId);
