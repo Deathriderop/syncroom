@@ -119,6 +119,7 @@ let RTC_CONFIG = {
 // ---------------------------------------------------------------------------
 // DOM refs
 // ---------------------------------------------------------------------------
+const homeScreen = document.getElementById('home-screen');
 const joinScreen = document.getElementById('join-screen');
 const roomScreen = document.getElementById('room-screen');
 const joinForm = document.getElementById('join-form');
@@ -126,6 +127,12 @@ const nameInput = document.getElementById('name-input');
 const roomInput = document.getElementById('room-input');
 const generateCodeBtn = document.getElementById('generate-code-btn');
 const ytApiKeyInput = document.getElementById('yt-api-key-input');
+const joinCloseBtn = document.getElementById('join-close-btn');
+const joinModalBackdrop = document.getElementById('join-modal-backdrop');
+const joinVideoPreview = document.getElementById('join-video-preview');
+const joinVideoThumb = document.getElementById('join-video-thumb');
+const joinVideoTitleEl = document.getElementById('join-video-title');
+const backHomeBtn = document.getElementById('back-home-btn');
 
 const roomNameLabel = document.getElementById('room-name-label');
 const tilesEl = document.getElementById('tiles');
@@ -176,17 +183,45 @@ fetch('/api/youtube/config')
   });
 
 // ---------------------------------------------------------------------------
-// Join flow
+// Join flow — the join form now lives in a modal opened from the YouTube-
+// style home screen, either via "Start a room" (empty) or by picking a
+// video from the home feed/search results (pre-attached, queued right
+// after joining).
 // ---------------------------------------------------------------------------
+let pendingJoinVideo = null; // { videoId, title, thumbnail } set when opened from a video card
+
+function openJoinModal(video) {
+  pendingJoinVideo = video || null;
+  if (pendingJoinVideo) {
+    joinVideoThumb.src = pendingJoinVideo.thumbnail || `https://i.ytimg.com/vi/${pendingJoinVideo.videoId}/mqdefault.jpg`;
+    joinVideoTitleEl.textContent = pendingJoinVideo.title || pendingJoinVideo.videoId;
+    joinVideoPreview.classList.remove('hidden');
+  } else {
+    joinVideoPreview.classList.add('hidden');
+  }
+  joinScreen.classList.remove('hidden');
+  nameInput.focus();
+}
+function closeJoinModal() {
+  joinScreen.classList.add('hidden');
+  pendingJoinVideo = null;
+}
+joinCloseBtn.addEventListener('click', closeJoinModal);
+joinModalBackdrop.addEventListener('click', closeJoinModal);
+
 generateCodeBtn.addEventListener('click', () => {
   const words = ['sunset', 'echo', 'amber', 'nova', 'drift', 'quiet', 'static', 'lounge', 'harbor', 'ember'];
   const pick = () => words[Math.floor(Math.random() * words.length)];
   roomInput.value = `${pick()}-${pick()}-${Math.floor(Math.random() * 90 + 10)}`;
 });
 
-// Pre-fill room from URL (?room=xyz) for invite links
+// Invite links (?room=xyz) open the join modal directly instead of landing
+// on the home feed, so following a shared link is a one-step action.
 const urlParams = new URLSearchParams(location.search);
-if (urlParams.get('room')) roomInput.value = urlParams.get('room');
+if (urlParams.get('room')) {
+  roomInput.value = urlParams.get('room');
+  openJoinModal(null);
+}
 
 joinForm.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -196,6 +231,10 @@ joinForm.addEventListener('submit', (e) => {
 
   localStorage.setItem('syncroom_yt_key', ytApiKeyInput.value.trim());
 
+  const videoToQueue = pendingJoinVideo;
+  pendingJoinVideo = null;
+
+  homeScreen.classList.add('hidden');
   joinScreen.classList.add('hidden');
   roomScreen.classList.remove('hidden');
   unlockAudioBtn.classList.remove('hidden');
@@ -204,6 +243,9 @@ joinForm.addEventListener('submit', (e) => {
 
   initLocalMedia().finally(() => {
     socket.emit('join-room', { roomId, name: myName });
+    if (videoToQueue) {
+      socket.emit('queue:add', { videoId: videoToQueue.videoId, title: videoToQueue.title || videoToQueue.videoId });
+    }
   });
 });
 
@@ -219,6 +261,91 @@ copyLinkBtn.addEventListener('click', async () => {
 });
 
 leaveBtn.addEventListener('click', () => location.reload());
+backHomeBtn.addEventListener('click', () => location.reload());
+
+// ---------------------------------------------------------------------------
+// Home screen — a YouTube-style browsable feed sitting in front of the room
+// experience. It reuses the same search proxy (shared server key first,
+// personal key fallback) that room search already uses; searchYouTube() is
+// defined further down but function declarations are hoisted, so it's safe
+// to call from here.
+// ---------------------------------------------------------------------------
+const homeSearchForm = document.getElementById('home-search-form');
+const homeSearchInput = document.getElementById('home-search-input');
+const homeGrid = document.getElementById('home-grid');
+const homeEmptyState = document.getElementById('home-empty-state');
+const createRoomBtn = document.getElementById('create-room-btn');
+const emptyCreateRoomBtn = document.getElementById('empty-create-room-btn');
+const apiKeyBtn = document.getElementById('api-key-btn');
+const emptyApiKeyBtn = document.getElementById('empty-api-key-btn');
+const keyPopover = document.getElementById('key-popover');
+const keyPopoverClose = document.getElementById('key-popover-close');
+const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+const homeSidebar = document.getElementById('home-sidebar');
+const howItWorksBtn = document.getElementById('how-it-works-btn');
+
+[createRoomBtn, emptyCreateRoomBtn].forEach(btn => btn.addEventListener('click', () => openJoinModal(null)));
+[apiKeyBtn, emptyApiKeyBtn].forEach(btn => btn.addEventListener('click', () => keyPopover.classList.remove('hidden')));
+keyPopoverClose.addEventListener('click', () => keyPopover.classList.add('hidden'));
+sidebarToggleBtn.addEventListener('click', () => homeSidebar.classList.toggle('hidden'));
+howItWorksBtn.addEventListener('click', () => {
+  alert('Music plays through YouTube\u2019s own player on each device \u2014 the server only relays play/pause/seek timing, never the audio itself, so quality is exactly what YouTube serves. Voice/video is peer-to-peer WebRTC, so it never competes with the music for bandwidth or gets crushed by a voice codec.');
+});
+
+function renderVideoCard(item) {
+  const card = document.createElement('div');
+  card.className = 'video-card';
+  const thumb = item.thumbnail || `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`;
+  card.innerHTML = `
+    <div class="vc-thumb-wrap">
+      <img src="${thumb}" alt="" loading="lazy">
+      <span class="vc-badge"><span class="dot"></span>Watch together</span>
+    </div>
+    <div class="vc-meta">
+      <div class="vc-avatar">${escapeHtml((item.channelTitle || '?').charAt(0).toUpperCase())}</div>
+      <div>
+        <div class="vc-title">${escapeHtml(item.title)}</div>
+        <div class="vc-channel">${escapeHtml(item.channelTitle || '')}</div>
+        <div class="vc-sub">Synced watch party</div>
+      </div>
+    </div>`;
+  card.addEventListener('click', () => openJoinModal(item));
+  return card;
+}
+
+function renderHomeGrid(items) {
+  homeGrid.innerHTML = '';
+  if (!items || items.length === 0) {
+    homeEmptyState.classList.remove('hidden');
+    homeGrid.classList.add('hidden');
+    return;
+  }
+  homeEmptyState.classList.add('hidden');
+  homeGrid.classList.remove('hidden');
+  items.forEach(item => homeGrid.appendChild(renderVideoCard(item)));
+}
+
+async function loadHomeFeed(query) {
+  try {
+    const items = await searchYouTube(query);
+    renderHomeGrid(items);
+  } catch (err) {
+    // No key available yet (server or personal) — leave the empty state
+    // showing, it already explains how to get a feed going.
+    renderHomeGrid([]);
+  }
+}
+
+homeSearchForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const q = homeSearchInput.value.trim();
+  if (!q) return;
+  loadHomeFeed(q);
+});
+
+// Try a first, general feed on load; harmless no-op (empty state stays up)
+// if no shared/personal API key is configured yet.
+loadHomeFeed('music');
 
 // ---------------------------------------------------------------------------
 // Local media (mic/cam) — off by default, user opts in
@@ -503,7 +630,7 @@ function escapeHtml(s) {
 // ---------------------------------------------------------------------------
 function onYouTubeIframeAPIReady() {
   ytPlayer = new YT.Player('yt-player-mount', {
-    height: '1', width: '1',
+    height: '390', width: '640', // overridden to fill .video-frame by CSS (see .yt-mount iframe)
     playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1, mute: 1 },
     events: {
       onReady: () => {
@@ -807,6 +934,7 @@ function renderQueue() {
     li.className = i === currentIndex ? 'active' : '';
     li.innerHTML = `
       <span class="qi">${i + 1}</span>
+      <img class="qthumb" src="https://i.ytimg.com/vi/${item.videoId}/default.jpg" alt="" loading="lazy">
       <span class="qt">${escapeHtml(item.title || item.videoId)}</span>
       <span class="q-controls">
         <button type="button" class="q-btn q-up" title="Move up" ${i === 0 ? 'disabled' : ''}>▲</button>
@@ -970,7 +1098,7 @@ async function searchYouTube(query) {
     videoId: it.id.videoId,
     title: it.snippet.title,
     channelTitle: it.snippet.channelTitle,
-    thumbnail: it.snippet.thumbnails?.default?.url || ''
+    thumbnail: it.snippet.thumbnails?.medium?.url || it.snippet.thumbnails?.default?.url || ''
   }));
 }
 

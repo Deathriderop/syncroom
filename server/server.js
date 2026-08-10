@@ -73,7 +73,7 @@ app.get('/api/youtube/search', async (req, res) => {
       videoId: it.id.videoId,
       title: it.snippet.title,
       channelTitle: it.snippet.channelTitle,
-      thumbnail: it.snippet.thumbnails?.default?.url || ''
+      thumbnail: it.snippet.thumbnails?.medium?.url || it.snippet.thumbnails?.default?.url || ''
     }));
     res.json({ items });
   } catch (err) {

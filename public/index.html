@@ -3,101 +3,141 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0B0A14">
-<title>SyncRoom — listen, talk, watch. together.</title>
+<meta name="theme-color" content="#0f0f0f">
+<title>SyncRoom — watch together, in sync</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,600&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- ===================== JOIN SCREEN ===================== -->
-<main id="join-screen" class="screen join-screen">
-  <div class="join-shell">
+<!-- ===================== HOME SCREEN ===================== -->
+<main id="home-screen" class="screen home-screen">
 
-    <!-- Left: brand showcase (desktop storytelling panel, condenses on mobile) -->
-    <section class="brand-showcase" aria-hidden="true">
-      <div class="showcase-glow"></div>
-      <div class="showcase-content">
-        <div class="brand">
-          <span class="brand-mark">
-            <svg viewBox="0 0 48 48" width="34" height="34">
-              <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
-              <circle cx="24" cy="24" r="3.2" fill="currentColor"/>
-              <circle cx="24" cy="6.5" r="2.4" fill="currentColor"/>
-              <circle cx="24" cy="41.5" r="2.4" fill="currentColor" opacity="0.4"/>
-              <circle cx="41.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
-              <circle cx="6.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
-            </svg>
-          </span>
-          <span class="brand-word">SyncRoom</span>
-        </div>
-        <h1 class="showcase-title">One room.<br>Same track,<br><em>same beat.</em></h1>
-        <p class="showcase-copy">Queue a song, hop on camera, and watch it land in everyone's ears at the exact same millisecond — no "wait, pause it" required.</p>
-        <ul class="showcase-features">
-          <li><span class="sf-dot sf-dot-a"></span>Perfectly synced playback</li>
-          <li><span class="sf-dot sf-dot-b"></span>Live voice &amp; video, built in</li>
-          <li><span class="sf-dot sf-dot-c"></span>Anyone can queue, no host needed</li>
-        </ul>
-        <div class="showcase-vinyl" aria-hidden="true">
-          <div class="sv-ring sv-ring-1"></div>
-          <div class="sv-ring sv-ring-2"></div>
-          <div class="sv-ring sv-ring-3"></div>
-          <div class="sv-core"></div>
+  <header class="yt-header">
+    <div class="yt-header-left">
+      <button type="button" id="sidebar-toggle-btn" class="icon-btn" title="Menu" aria-label="Toggle menu">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </button>
+      <div class="yt-logo">
+        <span class="yt-logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="26" height="26">
+            <rect x="2" y="9" width="44" height="30" rx="9" fill="#FF0000"/>
+            <path d="M20 16.5L32 24L20 31.5V16.5Z" fill="#0f0f0f"/>
+          </svg>
+        </span>
+        <span class="yt-logo-word">SyncRoom</span>
+      </div>
+    </div>
+
+    <form id="home-search-form" class="yt-search-form" role="search">
+      <input type="text" id="home-search-input" placeholder="Search YouTube — pick something to watch together" autocomplete="off">
+      <button type="submit" class="yt-search-btn" aria-label="Search">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+      </button>
+    </form>
+
+    <div class="yt-header-actions">
+      <button type="button" id="api-key-btn" class="icon-btn" title="YouTube API key settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.3 7.3 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.63 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.05.31-.08.63-.08.94s.02.63.07.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.4.34.65.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h3.84c.25 0 .46-.14.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.24.11.5.02.65-.22l1.92-3.32a.5.5 0 0 0-.12-.64zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+      </button>
+      <button type="button" id="create-room-btn" class="pill-btn pill-btn-red">Start a room</button>
+    </div>
+  </header>
+
+  <!-- API key popover -->
+  <div id="key-popover" class="key-popover hidden">
+    <div class="key-popover-card">
+      <div class="key-popover-head">
+        <strong>YouTube API key</strong>
+        <button type="button" id="key-popover-close" class="icon-btn small" aria-label="Close">✕</button>
+      </div>
+      <p class="muted small" id="server-key-status">Checking whether this server already has a shared key…</p>
+      <input type="password" id="yt-api-key-input" placeholder="AIza… (only needed for search/playlists)">
+      <p class="muted small">Stored only in your browser — used for search and playlist import, and for the home feed below.</p>
+    </div>
+  </div>
+
+  <div class="yt-body">
+    <nav id="home-sidebar" class="home-sidebar">
+      <button type="button" class="sb-item sb-item-active">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 3l9 8h-3v9h-5v-6H11v6H6v-9H3z"/></svg>
+        <span>Home</span>
+      </button>
+      <button type="button" class="sb-item" id="how-it-works-btn">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2zm0-4h-2c0-3 3-2.7 3-5 0-1.3-1-2-2-2s-2 .7-2 2H8c0-2.2 1.8-4 4-4s4 1.8 4 4c0 2.4-3 2.5-3 5z"/></svg>
+        <span>How it works</span>
+      </button>
+      <div class="sb-divider"></div>
+      <p class="sb-note muted small">Rooms sync YouTube playback for everyone, plus live voice &amp; video — no accounts needed.</p>
+    </nav>
+
+    <main id="home-main" class="home-main">
+      <div id="home-empty-state" class="home-empty">
+        <svg viewBox="0 0 24 24" width="46" height="46"><path fill="currentColor" opacity="0.35" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+        <h2>Search for something to watch together</h2>
+        <p class="muted">Or jump straight into a room and paste a link once you're in — no API key required for that.</p>
+        <div class="home-empty-actions">
+          <button type="button" id="empty-create-room-btn" class="pill-btn pill-btn-red">Start a room</button>
+          <button type="button" id="empty-api-key-btn" class="pill-btn pill-btn-ghost">Add API key for a home feed</button>
         </div>
       </div>
-    </section>
-
-    <!-- Right: the actual join card -->
-    <section class="join-card-wrap">
-      <div class="join-card">
-        <div class="brand brand-compact">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 48 48" width="30" height="30">
-              <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
-              <circle cx="24" cy="24" r="3.2" fill="currentColor"/>
-              <circle cx="24" cy="6.5" r="2.4" fill="currentColor"/>
-              <circle cx="24" cy="41.5" r="2.4" fill="currentColor" opacity="0.4"/>
-              <circle cx="41.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
-              <circle cx="6.5" cy="24" r="2.4" fill="currentColor" opacity="0.7"/>
-            </svg>
-          </span>
-          <h1>SyncRoom</h1>
-        </div>
-        <p class="tagline">One room. Same track, same beat, same call.</p>
-
-        <form id="join-form">
-          <label class="field">
-            <span>Your name</span>
-            <input type="text" id="name-input" placeholder="e.g. Priya" maxlength="24" required autocomplete="off">
-          </label>
-          <label class="field">
-            <span>Room code</span>
-            <div class="room-code-row">
-              <input type="text" id="room-input" placeholder="e.g. sunset-lounge" maxlength="32" required autocomplete="off">
-              <button type="button" id="generate-code-btn" title="Generate a room code">⟳</button>
-            </div>
-          </label>
-          <button type="submit" class="primary-btn primary-btn-block">Enter room</button>
-        </form>
-
-        <details class="api-key-details">
-          <summary>YouTube API key <span class="muted">(only needed to import playlists)</span></summary>
-          <p class="muted small" id="server-key-status">Checking whether this room already has a shared key…</p>
-          <input type="password" id="yt-api-key-input" placeholder="AIza...">
-        </details>
-      </div>
-      <p class="join-foot muted small">Works in any modern browser — desktop, iOS, or Android.</p>
-    </section>
-
+      <div id="home-grid" class="home-grid"></div>
+    </main>
   </div>
 </main>
 
-<!-- ===================== ROOM SCREEN ===================== -->
+<!-- ===================== JOIN MODAL ===================== -->
+<div id="join-screen" class="screen join-modal hidden">
+  <div class="join-modal-backdrop" id="join-modal-backdrop"></div>
+  <div class="join-modal-card">
+    <button type="button" id="join-close-btn" class="icon-btn join-close" aria-label="Close">✕</button>
+
+    <div class="brand brand-compact">
+      <span class="yt-logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="26" height="26">
+          <rect x="2" y="9" width="44" height="30" rx="9" fill="#FF0000"/>
+          <path d="M20 16.5L32 24L20 31.5V16.5Z" fill="#0f0f0f"/>
+        </svg>
+      </span>
+      <h1>SyncRoom</h1>
+    </div>
+    <p class="tagline">One room. Same video, same beat, same call.</p>
+
+    <div id="join-video-preview" class="join-video-preview hidden">
+      <img id="join-video-thumb" alt="">
+      <div class="jvp-info">
+        <span class="jvp-eyebrow">Watching together</span>
+        <span id="join-video-title" class="jvp-title"></span>
+      </div>
+    </div>
+
+    <form id="join-form">
+      <label class="field">
+        <span>Your name</span>
+        <input type="text" id="name-input" placeholder="e.g. Priya" maxlength="24" required autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Room code</span>
+        <div class="room-code-row">
+          <input type="text" id="room-input" placeholder="e.g. sunset-lounge" maxlength="32" required autocomplete="off">
+          <button type="button" id="generate-code-btn" title="Generate a room code">⟳</button>
+        </div>
+      </label>
+      <button type="submit" class="primary-btn primary-btn-block">Enter room</button>
+    </form>
+    <p class="join-foot muted small">Works in any modern browser — desktop, iOS, or Android.</p>
+  </div>
+</div>
+
+<!-- ===================== ROOM / WATCH SCREEN ===================== -->
 <main id="room-screen" class="screen room-screen hidden">
 
-  <header class="room-header">
+  <header class="watch-header">
+    <button type="button" id="back-home-btn" class="icon-btn" title="Back to home" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"/></svg>
+    </button>
     <div class="room-title">
       <span class="dot-live" id="live-dot"></span>
       <h2 id="room-name-label">room</h2>
@@ -108,51 +148,39 @@
     </div>
   </header>
 
-  <div class="room-body">
+  <div class="room-body watch-grid">
 
-    <!-- Left: people + call tiles -->
-    <section class="panel people-panel">
-      <h3><span class="panel-eyebrow-dot"></span>In the room</h3>
-      <div id="self-preview" class="self-preview hidden">
-        <video id="self-preview-video" autoplay playsinline muted></video>
-      </div>
-      <div id="tiles" class="tiles"></div>
-      <div class="video-size-control">
-        <span aria-hidden="true">🔍</span>
-        <label for="video-size-slider">Tile size</label>
-        <input type="range" id="video-size-slider" min="60" max="200" value="88" step="2" title="Resize everyone's tile and your camera preview">
-      </div>
-      <div class="call-controls">
-        <button id="mic-btn" class="control-btn" data-on="false" title="Toggle microphone">
-          <span class="icon">🎙️</span><span class="label">Mic</span>
-        </button>
-        <button id="cam-btn" class="control-btn" data-on="false" title="Toggle camera">
-          <span class="icon">🎥</span><span class="label">Camera</span>
-        </button>
-      </div>
-    </section>
+    <!-- Main: video + controls -->
+    <section class="watch-main">
 
-    <!-- Center: the dial + player -->
-    <section class="panel player-panel">
-      <div class="dial-wrap">
-        <div class="dial-halo" aria-hidden="true"></div>
-        <svg id="dial-orbit" viewBox="0 0 320 320" class="dial-orbit"></svg>
-        <div id="vinyl" class="vinyl">
-          <div class="vinyl-ring"></div>
-          <div class="vinyl-ring"></div>
-          <div class="vinyl-ring"></div>
-          <div class="vinyl-label">
-            <span id="now-playing-title">Nothing queued yet</span>
+      <div class="video-frame">
+        <div id="yt-player-mount" class="yt-mount"></div>
+        <button id="unlock-audio-btn" class="unlock-audio-btn hidden" type="button">
+          🔈 Click to enable sound in this tab
+        </button>
+        <div class="sync-badge" title="Playback stays in sync for everyone in the room">
+          <div id="vinyl" class="vinyl">
+            <div class="vinyl-ring"></div>
+            <div class="vinyl-ring"></div>
           </div>
+          <span>In sync</span>
         </div>
+        <svg id="dial-orbit" viewBox="0 0 320 320" class="dial-orbit" aria-hidden="true"></svg>
       </div>
 
-      <div class="transport">
-        <button id="prev-btn" class="transport-btn">⏮</button>
-        <button id="skip-back-btn" class="transport-btn">⏪</button>
-        <button id="play-pause-btn" class="transport-btn primary">▶</button>
-        <button id="skip-forward-btn" class="transport-btn">⏩</button>
-        <button id="next-btn" class="transport-btn">⏭</button>
+      <div class="watch-titlebar">
+        <h1 id="now-playing-title" class="watch-title">Nothing queued yet</h1>
+        <p class="watch-meta muted small">Anyone in the room can play, pause, skip, or seek — it syncs for everyone, at full YouTube audio/video quality.</p>
+      </div>
+
+      <div class="transport-bar">
+        <div class="transport">
+          <button id="prev-btn" class="transport-btn" title="Previous track">⏮</button>
+          <button id="skip-back-btn" class="transport-btn" title="Back 10s">⏪</button>
+          <button id="play-pause-btn" class="transport-btn primary" title="Play/Pause">▶</button>
+          <button id="skip-forward-btn" class="transport-btn" title="Forward 10s">⏩</button>
+          <button id="next-btn" class="transport-btn" title="Next track">⏭</button>
+        </div>
         <div class="seek-row">
           <span id="time-current" class="time">0:00</span>
           <input type="range" id="seek-bar" min="0" max="100" value="0" step="1">
@@ -160,39 +188,60 @@
         </div>
       </div>
 
-      <div id="yt-player-mount" class="yt-mount"></div>
-      <button id="unlock-audio-btn" class="unlock-audio-btn hidden" type="button">
-        🔈 Click to enable sound in this tab
-      </button>
+      <div class="watch-toolbar">
+        <form id="search-form" class="add-track-form">
+          <input type="text" id="search-input" placeholder="Search YouTube to add to Up next…">
+          <button type="submit" class="primary-btn small">Search</button>
+        </form>
+        <div id="search-results" class="search-results"></div>
 
-      <form id="search-form" class="add-track-form">
-        <input type="text" id="search-input" placeholder="Search for a song…">
-        <button type="submit" class="primary-btn small">Search</button>
-      </form>
-      <div id="search-results" class="search-results"></div>
-
-      <form id="add-track-form" class="add-track-form">
-        <input type="text" id="add-track-input" placeholder="Paste a YouTube video or playlist URL…">
-        <button type="submit" class="primary-btn small">Add</button>
-      </form>
-
-      <div class="queue-wrap">
-        <h4>Queue</h4>
-        <p class="muted small queue-hint">Anyone in the room can play, skip, add, remove, and reorder tracks.</p>
-        <ol id="queue-list" class="queue-list"></ol>
+        <form id="add-track-form" class="add-track-form">
+          <input type="text" id="add-track-input" placeholder="…or paste a YouTube video or playlist URL">
+          <button type="submit" class="primary-btn small">Add</button>
+        </form>
       </div>
     </section>
 
-    <!-- Right: chat -->
-    <section class="panel chat-panel">
-      <h3><span class="panel-eyebrow-dot"></span>Chat</h3>
-      <div id="chat-log" class="chat-log"></div>
-      <form id="chat-form" class="chat-form">
-        <input type="text" id="chat-input" placeholder="Say something…" maxlength="500" autocomplete="off">
-        <button type="submit" class="ghost-btn">Send</button>
-      </form>
-    </section>
+    <!-- Sidebar: up next, people, chat -->
+    <aside class="watch-sidebar">
 
+      <section class="panel queue-panel">
+        <h3><span class="panel-eyebrow-dot"></span>Up next</h3>
+        <p class="muted small queue-hint">Anyone in the room can play, skip, add, remove, and reorder.</p>
+        <ol id="queue-list" class="queue-list"></ol>
+      </section>
+
+      <section class="panel people-panel">
+        <h3><span class="panel-eyebrow-dot"></span>In the room</h3>
+        <div id="self-preview" class="self-preview hidden">
+          <video id="self-preview-video" autoplay playsinline muted></video>
+        </div>
+        <div id="tiles" class="tiles"></div>
+        <div class="video-size-control">
+          <span aria-hidden="true">🔍</span>
+          <label for="video-size-slider">Tile size</label>
+          <input type="range" id="video-size-slider" min="60" max="200" value="88" step="2" title="Resize everyone's tile and your camera preview">
+        </div>
+        <div class="call-controls">
+          <button id="mic-btn" class="control-btn" data-on="false" title="Toggle microphone">
+            <span class="icon">🎙️</span><span class="label">Mic</span>
+          </button>
+          <button id="cam-btn" class="control-btn" data-on="false" title="Toggle camera">
+            <span class="icon">🎥</span><span class="label">Camera</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel chat-panel">
+        <h3><span class="panel-eyebrow-dot"></span>Chat</h3>
+        <div id="chat-log" class="chat-log"></div>
+        <form id="chat-form" class="chat-form">
+          <input type="text" id="chat-input" placeholder="Say something…" maxlength="500" autocomplete="off">
+          <button type="submit" class="ghost-btn">Send</button>
+        </form>
+      </section>
+
+    </aside>
   </div>
 </main>
 
