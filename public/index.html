@@ -42,6 +42,15 @@
       <button type="button" id="api-key-btn" class="icon-btn" title="YouTube API key settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.3 7.3 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.63 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.05.31-.08.63-.08.94s.02.63.07.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.4.34.65.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.28.27.42.5.42h3.84c.25 0 .46-.14.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.24.11.5.02.65-.22l1.92-3.32a.5.5 0 0 0-.12-.64zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
       </button>
+      <button type="button" id="google-signin-btn" class="pill-btn pill-btn-ghost">
+        <svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-3px;margin-right:6px"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Sign in with Google
+      </button>
+      <div id="google-user-chip" class="google-user-chip hidden">
+        <img id="google-user-avatar" alt="">
+        <span id="google-user-name"></span>
+        <button type="button" id="google-signout-btn" class="icon-btn small" title="Sign out">✕</button>
+      </div>
       <button type="button" id="create-room-btn" class="pill-btn pill-btn-red">Start a room</button>
     </div>
   </header>
@@ -61,9 +70,17 @@
 
   <div class="yt-body">
     <nav id="home-sidebar" class="home-sidebar">
-      <button type="button" class="sb-item sb-item-active">
+      <button type="button" class="sb-item sb-item-active" id="nav-home-btn" data-feed="search">
         <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 3l9 8h-3v9h-5v-6H11v6H6v-9H3z"/></svg>
         <span>Home</span>
+      </button>
+      <button type="button" class="sb-item hidden" id="nav-subs-btn" data-feed="subscriptions">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M20 8H4V6h16zm-2-6H6v2h12zM4 18h9v-2H4zm0-4h16v-2H4z"/></svg>
+        <span>Subscriptions</span>
+      </button>
+      <button type="button" class="sb-item hidden" id="nav-liked-btn" data-feed="liked">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M1 21h4V9H1zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73z"/></svg>
+        <span>Liked videos</span>
       </button>
       <button type="button" class="sb-item" id="how-it-works-btn">
         <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2zm0-4h-2c0-3 3-2.7 3-5 0-1.3-1-2-2-2s-2 .7-2 2H8c0-2.2 1.8-4 4-4s4 1.8 4 4c0 2.4-3 2.5-3 5z"/></svg>

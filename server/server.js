@@ -15,6 +15,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -26,6 +27,259 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// ---------------------------------------------------------------------------
+// Google Sign-In (OAuth 2.0) — lets a user log in with their own Google
+// account so their home feed can be built from their real subscriptions and
+// liked videos, instead of generic search results. Uses no extra npm
+// packages: sessions are a random token in an httpOnly cookie, mapped to
+// tokens/profile in memory (server restart = everyone logged out, which is
+// fine for this app's scale). Nothing here proxies video/audio — this only
+// ever calls YouTube's metadata endpoints (subscriptions, playlists).
+// ---------------------------------------------------------------------------
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+// Must match an "Authorized redirect URI" registered in Google Cloud exactly.
+// Set GOOGLE_REDIRECT_URI in .env for your deployed domain; falls back to
+// localhost for local dev.
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `http://localhost:${PORT}/auth/google/callback`;
+
+const sessions = new Map(); // sessionId -> { accessToken, refreshToken, expiresAt, profile }
+const pendingStates = new Map(); // oauth `state` -> expiry timestamp (CSRF protection)
+
+function parseCookies(req) {
+  const header = req.headers.cookie;
+  const out = {};
+  if (!header) return out;
+  header.split(';').forEach(pair => {
+    const idx = pair.indexOf('=');
+    if (idx === -1) return;
+    out[pair.slice(0, idx).trim()] = decodeURIComponent(pair.slice(idx + 1).trim());
+  });
+  return out;
+}
+
+function getSession(req) {
+  const cookies = parseCookies(req);
+  const sid = cookies.syncroom_sid;
+  if (!sid) return null;
+  return sessions.get(sid) || null;
+}
+
+app.use((req, res, next) => {
+  req.syncroomSession = getSession(req);
+  next();
+});
+
+app.get('/auth/google/status', (req, res) => {
+  res.json({ configured: Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) });
+});
+
+app.get('/auth/google/login', (req, res) => {
+  if (!GOOGLE_CLIENT_ID) {
+    return res.status(501).send('Google sign-in is not configured on this server yet.');
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  pendingStates.set(state, Date.now() + 5 * 60 * 1000); // 5 min to complete login
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: 'code',
+    access_type: 'offline', // request a refresh_token
+    prompt: 'consent',      // ensure refresh_token is issued even on repeat logins
+    scope: [
+      'https://www.googleapis.com/auth/youtube.readonly',
+      'https://www.googleapis.com/auth/userinfo.profile',
+      'https://www.googleapis.com/auth/userinfo.email'
+    ].join(' '),
+    state
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error) return res.redirect('/?auth=error');
+  const stateExpiry = pendingStates.get(state);
+  pendingStates.delete(state);
+  if (!code || !stateExpiry || stateExpiry < Date.now()) {
+    return res.redirect('/?auth=error');
+  }
+  try {
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+        grant_type: 'authorization_code'
+      })
+    });
+    const tokens = await tokenRes.json();
+    if (tokens.error) throw new Error(tokens.error_description || tokens.error);
+
+    const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` }
+    });
+    const profile = await profileRes.json();
+
+    const sessionId = crypto.randomBytes(24).toString('hex');
+    sessions.set(sessionId, {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token || null,
+      expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
+      profile: { name: profile.name, avatar: profile.picture, email: profile.email }
+    });
+
+    const isHttps = GOOGLE_REDIRECT_URI.startsWith('https');
+    res.setHeader('Set-Cookie',
+      `syncroom_sid=${sessionId}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax${isHttps ? '; Secure' : ''}`
+    );
+    res.redirect('/');
+  } catch (err) {
+    console.error('Google OAuth callback failed:', err.message);
+    res.redirect('/?auth=error');
+  }
+});
+
+app.post('/auth/google/logout', (req, res) => {
+  const cookies = parseCookies(req);
+  if (cookies.syncroom_sid) sessions.delete(cookies.syncroom_sid);
+  res.setHeader('Set-Cookie', 'syncroom_sid=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax');
+  res.json({ ok: true });
+});
+
+app.get('/api/me', (req, res) => {
+  const session = req.syncroomSession;
+  if (!session) return res.json({ loggedIn: false });
+  res.json({ loggedIn: true, name: session.profile.name, avatar: session.profile.avatar });
+});
+
+// Refreshes the access token in-place if it's expired (or about to be),
+// using the stored refresh_token. Returns a usable access token, or null if
+// the session can't be refreshed (rare — usually means they revoked access).
+async function getValidAccessToken(session) {
+  if (session.expiresAt > Date.now() + 30000) return session.accessToken;
+  if (!session.refreshToken) return null;
+  try {
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        refresh_token: session.refreshToken,
+        grant_type: 'refresh_token'
+      })
+    });
+    const data = await r.json();
+    if (data.error) return null;
+    session.accessToken = data.access_token;
+    session.expiresAt = Date.now() + (data.expires_in || 3600) * 1000;
+    return session.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+function requireLogin(req, res, next) {
+  if (!req.syncroomSession) return res.status(401).json({ error: 'not_logged_in' });
+  next();
+}
+
+// Builds a "recent uploads from channels you're subscribed to" feed.
+// Quota-efficient path: subscriptions.list (1 unit) -> channels.list batched
+// in groups of 50 to get each channel's uploads-playlist id (1 unit per
+// batch) -> playlistItems.list per channel for recent items (1 unit each).
+// This avoids search.list, which costs 100 units per call.
+app.get('/api/youtube/subscriptions', requireLogin, async (req, res) => {
+  const token = await getValidAccessToken(req.syncroomSession);
+  if (!token) return res.status(401).json({ error: 'reauth_required' });
+  const auth = { Authorization: `Bearer ${token}` };
+  try {
+    const subRes = await fetch(
+      'https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=50&order=alphabetical',
+      { headers: auth }
+    );
+    const subData = await subRes.json();
+    if (subData.error) return res.status(502).json({ error: subData.error.message });
+    const channelIds = (subData.items || []).map(it => it.snippet.resourceId.channelId).slice(0, 20);
+    if (channelIds.length === 0) return res.json({ items: [] });
+
+    const chanRes = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelIds.join(',')}`,
+      { headers: auth }
+    );
+    const chanData = await chanRes.json();
+    if (chanData.error) return res.status(502).json({ error: chanData.error.message });
+    const uploadPlaylistIds = (chanData.items || [])
+      .map(c => c.contentDetails?.relatedPlaylists?.uploads)
+      .filter(Boolean);
+
+    const perChannel = await Promise.all(uploadPlaylistIds.map(async (playlistId) => {
+      try {
+        const r = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=5&playlistId=${playlistId}`,
+          { headers: auth }
+        );
+        const d = await r.json();
+        if (d.error) return [];
+        return (d.items || []).map(it => ({
+          videoId: it.snippet.resourceId?.videoId,
+          title: it.snippet.title,
+          channelTitle: it.snippet.videoOwnerChannelTitle || it.snippet.channelTitle,
+          thumbnail: it.snippet.thumbnails?.medium?.url || it.snippet.thumbnails?.default?.url || '',
+          publishedAt: it.snippet.publishedAt
+        })).filter(v => v.videoId);
+      } catch {
+        return [];
+      }
+    }));
+
+    const items = perChannel.flat()
+      .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+      .slice(0, 24);
+    res.json({ items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Liked videos — pulled from the special "Liked videos" playlist on the
+// user's own channel (its ID varies per account, so we look it up first).
+app.get('/api/youtube/liked', requireLogin, async (req, res) => {
+  const token = await getValidAccessToken(req.syncroomSession);
+  if (!token) return res.status(401).json({ error: 'reauth_required' });
+  const auth = { Authorization: `Bearer ${token}` };
+  try {
+    const meRes = await fetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true',
+      { headers: auth }
+    );
+    const meData = await meRes.json();
+    if (meData.error) return res.status(502).json({ error: meData.error.message });
+    const likesPlaylistId = meData.items?.[0]?.contentDetails?.relatedPlaylists?.likes;
+    if (!likesPlaylistId) return res.json({ items: [] });
+
+    const r = await fetch(
+      `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=24&playlistId=${likesPlaylistId}`,
+      { headers: auth }
+    );
+    const d = await r.json();
+    if (d.error) return res.status(502).json({ error: d.error.message });
+    const items = (d.items || []).map(it => ({
+      videoId: it.snippet.resourceId?.videoId,
+      title: it.snippet.title,
+      channelTitle: it.snippet.videoOwnerChannelTitle || it.snippet.channelTitle,
+      thumbnail: it.snippet.thumbnails?.medium?.url || it.snippet.thumbnails?.default?.url || ''
+    })).filter(v => v.videoId);
+    res.json({ items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // YouTube Data API proxy — uses ONE server-held key (env var YOUTUBE_API_KEY)

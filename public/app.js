@@ -340,8 +340,95 @@ homeSearchForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const q = homeSearchInput.value.trim();
   if (!q) return;
+  setActiveFeedTab('search');
   loadHomeFeed(q);
 });
+
+// ---------------------------------------------------------------------------
+// Google Sign-In — once logged in, the sidebar gains "Subscriptions" and
+// "Liked videos" tabs built from the user's real YouTube account instead of
+// generic search results. Login/logout are plain redirects (no popup), the
+// server holds the OAuth tokens, and the browser only ever sees the
+// resulting video lists — never the access token itself.
+// ---------------------------------------------------------------------------
+const googleSigninBtn = document.getElementById('google-signin-btn');
+const googleSignoutBtn = document.getElementById('google-signout-btn');
+const googleUserChip = document.getElementById('google-user-chip');
+const googleUserAvatar = document.getElementById('google-user-avatar');
+const googleUserName = document.getElementById('google-user-name');
+const navHomeBtn = document.getElementById('nav-home-btn');
+const navSubsBtn = document.getElementById('nav-subs-btn');
+const navLikedBtn = document.getElementById('nav-liked-btn');
+
+googleSigninBtn.addEventListener('click', () => {
+  location.href = '/auth/google/login';
+});
+googleSignoutBtn.addEventListener('click', async () => {
+  await fetch('/auth/google/logout', { method: 'POST' });
+  location.reload();
+});
+
+function setActiveFeedTab(feed) {
+  [navHomeBtn, navSubsBtn, navLikedBtn].forEach(btn => btn.classList.remove('sb-item-active'));
+  const map = { search: navHomeBtn, subscriptions: navSubsBtn, liked: navLikedBtn };
+  (map[feed] || navHomeBtn).classList.add('sb-item-active');
+}
+
+async function loadAccountFeed(kind) {
+  homeGrid.innerHTML = '';
+  homeEmptyState.classList.add('hidden');
+  homeGrid.classList.remove('hidden');
+  homeGrid.innerHTML = '<p class="muted small" style="grid-column:1/-1">Loading your ' + (kind === 'liked' ? 'liked videos' : 'subscriptions') + '…</p>';
+  try {
+    const res = await fetch(`/api/youtube/${kind === 'liked' ? 'liked' : 'subscriptions'}`);
+    const data = await res.json();
+    if (data.error || !data.items) {
+      homeGrid.innerHTML = '';
+      renderHomeGrid([]);
+      return;
+    }
+    renderHomeGrid(data.items);
+  } catch {
+    homeGrid.innerHTML = '';
+    renderHomeGrid([]);
+  }
+}
+
+navHomeBtn.addEventListener('click', () => {
+  setActiveFeedTab('search');
+  renderHomeGrid([]); // back to the default "search to get started" state
+});
+navSubsBtn.addEventListener('click', () => {
+  setActiveFeedTab('subscriptions');
+  loadAccountFeed('subscriptions');
+});
+navLikedBtn.addEventListener('click', () => {
+  setActiveFeedTab('liked');
+  loadAccountFeed('liked');
+});
+
+fetch('/api/me')
+  .then(r => r.json())
+  .then(({ loggedIn, name, avatar }) => {
+    if (!loggedIn) return;
+    googleSigninBtn.classList.add('hidden');
+    googleUserChip.classList.remove('hidden');
+    googleUserAvatar.src = avatar || '';
+    googleUserName.textContent = (name || '').split(' ')[0] || 'Signed in';
+    navSubsBtn.classList.remove('hidden');
+    navLikedBtn.classList.remove('hidden');
+    // Land straight on their subscriptions feed instead of the empty search state.
+    setActiveFeedTab('subscriptions');
+    loadAccountFeed('subscriptions');
+  })
+  .catch(() => {});
+
+// If the OAuth callback redirected back with an error, let them know instead
+// of failing silently.
+if (new URLSearchParams(location.search).get('auth') === 'error') {
+  homeEmptyState.querySelector('h2').textContent = 'Sign-in didn\u2019t go through — try again';
+  history.replaceState(null, '', location.pathname);
+}
 
 // Try a first, general feed on load; harmless no-op (empty state stays up)
 // if no shared/personal API key is configured yet.

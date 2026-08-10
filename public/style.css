@@ -76,6 +76,29 @@ button, input{ font-family: inherit; }
 .pill-btn-red:hover{ background: var(--red-hover); border-color: var(--red-hover); }
 .pill-btn-ghost{ background: transparent; }
 
+.google-user-chip{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.google-user-chip img{
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.google-user-chip span{
+  font-size: 13px;
+  font-weight: 500;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .primary-btn{
   background: var(--red); color: #fff; border: none;
   padding: 0.85rem 1.3rem; border-radius: 999px; font-weight: 700;
