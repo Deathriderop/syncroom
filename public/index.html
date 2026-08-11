@@ -161,6 +161,9 @@
       <button id="copy-link-btn" class="ghost-btn" title="Copy room link">Copy invite</button>
     </div>
     <div class="header-actions">
+      <button type="button" id="float-toggle-btn" class="icon-btn float-toggle-btn" title="Expand" aria-label="Toggle floating window">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 4h7v2H6v5H4zm16 0v7h-2V6h-5V4zM4 20v-7h2v5h5v2zm16 0h-7v-2h5v-5h2z"/></svg>
+      </button>
       <button id="leave-btn" class="ghost-btn danger">Leave</button>
     </div>
   </header>
@@ -205,7 +208,7 @@
         </div>
       </div>
 
-      <div class="watch-toolbar">
+      <div class="watch-toolbar" id="watch-toolbar">
         <form id="search-form" class="add-track-form">
           <input type="text" id="search-input" placeholder="Search YouTube to add to Up next…">
           <button type="submit" class="primary-btn small">Search</button>
@@ -217,18 +220,26 @@
           <button type="submit" class="primary-btn small">Add</button>
         </form>
       </div>
+
+      <!-- Only shown in floating mode: quick access to queue/chat/people/add without expanding -->
+      <div class="floating-tabs" id="floating-tabs">
+        <button type="button" class="ft-btn" data-target="queue-panel" title="Up next">📋<span>Queue</span></button>
+        <button type="button" class="ft-btn" data-target="chat-panel" title="Chat">💬<span>Chat</span></button>
+        <button type="button" class="ft-btn" data-target="people-panel" title="People">👥<span>People</span></button>
+        <button type="button" class="ft-btn" data-target="watch-toolbar" title="Add a video">➕<span>Add</span></button>
+      </div>
     </section>
 
     <!-- Sidebar: up next, people, chat -->
     <aside class="watch-sidebar">
 
-      <section class="panel queue-panel">
+      <section class="panel queue-panel" id="queue-panel">
         <h3><span class="panel-eyebrow-dot"></span>Up next</h3>
         <p class="muted small queue-hint">Anyone in the room can play, skip, add, remove, and reorder.</p>
         <ol id="queue-list" class="queue-list"></ol>
       </section>
 
-      <section class="panel people-panel">
+      <section class="panel people-panel" id="people-panel">
         <h3><span class="panel-eyebrow-dot"></span>In the room</h3>
         <div id="self-preview" class="self-preview hidden">
           <video id="self-preview-video" autoplay playsinline muted></video>
@@ -249,7 +260,7 @@
         </div>
       </section>
 
-      <section class="panel chat-panel">
+      <section class="panel chat-panel" id="chat-panel">
         <h3><span class="panel-eyebrow-dot"></span>Chat</h3>
         <div id="chat-log" class="chat-log"></div>
         <form id="chat-form" class="chat-form">

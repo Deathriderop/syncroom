@@ -133,6 +133,7 @@ const joinVideoPreview = document.getElementById('join-video-preview');
 const joinVideoThumb = document.getElementById('join-video-thumb');
 const joinVideoTitleEl = document.getElementById('join-video-title');
 const backHomeBtn = document.getElementById('back-home-btn');
+const floatToggleBtn = document.getElementById('float-toggle-btn');
 
 const roomNameLabel = document.getElementById('room-name-label');
 const tilesEl = document.getElementById('tiles');
@@ -234,12 +235,13 @@ joinForm.addEventListener('submit', (e) => {
   const videoToQueue = pendingJoinVideo;
   pendingJoinVideo = null;
 
-  homeScreen.classList.add('hidden');
+  homeScreen.classList.remove('hidden');
   joinScreen.classList.add('hidden');
   roomScreen.classList.remove('hidden');
   unlockAudioBtn.classList.remove('hidden');
   roomNameLabel.textContent = roomId;
   history.replaceState(null, '', `?room=${encodeURIComponent(roomId)}`);
+  setRoomMode('floating'); // starts as a small window over the YT-style home feed
 
   initLocalMedia().finally(() => {
     socket.emit('join-room', { roomId, name: myName });
@@ -261,7 +263,89 @@ copyLinkBtn.addEventListener('click', async () => {
 });
 
 leaveBtn.addEventListener('click', () => location.reload());
-backHomeBtn.addEventListener('click', () => location.reload());
+
+// ---------------------------------------------------------------------------
+// Floating miniplayer mode — the room can sit as a small draggable window
+// over the YouTube-style home feed (so you can keep browsing while a video
+// plays), or expand to the full layout with chat/queue/people. Neither mode
+// disconnects the call or sync — only "Leave" does that.
+// ---------------------------------------------------------------------------
+let roomMode = 'floating';
+let dragOffset = null;
+
+function setRoomMode(mode) {
+  roomMode = mode;
+  roomScreen.classList.toggle('floating', mode === 'floating');
+  homeScreen.classList.toggle('hidden', mode === 'full'); // floating: home visible behind it; full: home hidden
+  backHomeBtn.classList.toggle('hidden', mode === 'floating');
+  floatToggleBtn.title = mode === 'floating' ? 'Expand' : 'Minimize — keep browsing';
+  floatToggleBtn.innerHTML = mode === 'floating'
+    ? '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 4h7v2H6v5H4zm16 0v7h-2V6h-5V4zM4 20v-7h2v5h5v2zm16 0h-7v-2h5v-5h2z"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M9 9V4H7v3H4v2zm6 0h5V7h-3V4h-2zm-6 6H4v2h3v3h2zm6 0v5h2v-3h3v-2z"/></svg>';
+}
+
+floatToggleBtn.addEventListener('click', () => setRoomMode(roomMode === 'floating' ? 'full' : 'floating'));
+backHomeBtn.addEventListener('click', () => setRoomMode('floating'));
+
+// Quick-access tabs inside the floating window: tap Queue/Chat/People/Add to
+// reveal that panel right there, tap again (or another tab) to switch —
+// keeps every sync feature reachable without leaving the mini window.
+const floatingTabBtns = document.querySelectorAll('.ft-btn');
+floatingTabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const targetId = btn.dataset.target;
+    const targetEl = document.getElementById(targetId);
+    const alreadyActive = targetEl.classList.contains('floating-panel-active');
+    document.querySelectorAll('.watch-sidebar .panel, #watch-toolbar').forEach(p => p.classList.remove('floating-panel-active'));
+    floatingTabBtns.forEach(b => b.classList.remove('ft-active'));
+    if (!alreadyActive) {
+      targetEl.classList.add('floating-panel-active');
+      btn.classList.add('ft-active');
+    }
+  });
+});
+
+// Drag support (mouse + touch) — only active while in floating mode, and
+// only when starting the drag from the header itself.
+const watchHeaderEl = document.querySelector('.room-screen .watch-header');
+function startDrag(clientX, clientY) {
+  if (roomMode !== 'floating') return;
+  const rect = roomScreen.getBoundingClientRect();
+  dragOffset = { x: clientX - rect.left, y: clientY - rect.top };
+  roomScreen.classList.add('dragging');
+}
+function moveDrag(clientX, clientY) {
+  if (!dragOffset) return;
+  const width = roomScreen.offsetWidth;
+  const height = roomScreen.offsetHeight;
+  const left = Math.min(Math.max(0, clientX - dragOffset.x), window.innerWidth - width);
+  const top = Math.min(Math.max(0, clientY - dragOffset.y), window.innerHeight - height);
+  roomScreen.style.left = `${left}px`;
+  roomScreen.style.top = `${top}px`;
+  roomScreen.style.right = 'auto';
+  roomScreen.style.bottom = 'auto';
+}
+function endDrag() {
+  dragOffset = null;
+  roomScreen.classList.remove('dragging');
+}
+watchHeaderEl.addEventListener('mousedown', (e) => {
+  if (e.target.closest('button')) return; // don't start a drag from a click on a button
+  startDrag(e.clientX, e.clientY);
+});
+window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+window.addEventListener('mouseup', endDrag);
+watchHeaderEl.addEventListener('touchstart', (e) => {
+  if (e.target.closest('button')) return;
+  const t = e.touches[0];
+  startDrag(t.clientX, t.clientY);
+}, { passive: true });
+window.addEventListener('touchmove', (e) => {
+  if (!dragOffset) return;
+  const t = e.touches[0];
+  moveDrag(t.clientX, t.clientY);
+}, { passive: true });
+window.addEventListener('touchend', endDrag);
 
 // ---------------------------------------------------------------------------
 // Home screen — a YouTube-style browsable feed sitting in front of the room

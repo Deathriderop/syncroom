@@ -249,6 +249,75 @@ button, input{ font-family: inherit; }
 .jvp-title{ font-size: 0.85rem; line-height:1.3; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .join-foot{ text-align:center; margin: 1.2rem 0 0; }
 
+/* ===================== FLOATING MINIPLAYER MODE =====================
+   When a room is created/joined, it starts as a small floating window
+   (like YouTube's own miniplayer) instead of taking over the whole page —
+   the YouTube-style home feed stays visible and browsable underneath. */
+.room-screen.floating{
+  position: fixed;
+  inset: auto 20px 20px auto;
+  height: auto;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  max-height: 82vh;
+  z-index: 500;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 16px 44px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07);
+  background: var(--bg);
+  display: flex; flex-direction: column;
+}
+.room-screen.floating.dragging{ transition:none; user-select:none; }
+.room-screen.floating .watch-header{
+  cursor: grab; padding: 0.5rem 0.6rem; gap:0.5rem; flex-shrink:0;
+}
+.room-screen.floating .watch-header:active{ cursor: grabbing; }
+.room-screen.floating .room-title h2{ font-size: 0.85rem; }
+.room-screen.floating .ghost-btn{ display:none; } /* hide "Copy invite" — no room for it */
+.room-screen.floating .watch-grid{
+  display:block; padding: 0; overflow-y:auto; grid-template-columns: none; flex:1; min-height:0;
+}
+.room-screen.floating .video-frame{ border-radius:0; box-shadow:none; }
+.room-screen.floating .watch-titlebar{ margin:0; padding: 0.5rem 0.7rem 0; }
+.room-screen.floating .watch-title{
+  font-size: 0.85rem; line-height:1.3;
+  display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden;
+}
+.room-screen.floating .watch-meta{ display:none; }
+.room-screen.floating .transport-bar{ margin: 0.5rem 0.7rem 0.7rem; padding: 0.5rem 0.6rem; }
+.room-screen.floating .transport-btn{ width: 32px; height:32px; font-size: 0.85rem; }
+.room-screen.floating .sync-badge{ transform: scale(0.85); transform-origin: top left; }
+
+/* Quick-access tab row (Queue / Chat / People / Add) — floating mode only */
+.floating-tabs{ display:none; }
+.room-screen.floating .floating-tabs{
+  display:flex; gap:0.3rem; padding: 0 0.7rem 0.6rem; flex-shrink:0;
+}
+.ft-btn{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
+  background: var(--surface-2); border:1px solid var(--line-strong); color: var(--text);
+  border-radius: 8px; padding: 0.4rem 0.2rem; font-size: 0.62rem; cursor:pointer;
+}
+.ft-btn span{ font-size: 0.62rem; opacity:0.85; }
+.ft-btn.ft-active{ background: var(--accent-2-soft); border-color: var(--accent-2); color: var(--accent-2); }
+
+/* In floating mode, the sidebar panels and the add-track toolbar are hidden
+   by default and only shown one at a time via the tab row above. */
+.room-screen.floating .watch-toolbar{ display:none; padding: 0 0.7rem 0.7rem; margin:0; }
+.room-screen.floating .watch-sidebar{ display:block; padding: 0 0.7rem 0.7rem; gap:0; }
+.room-screen.floating .watch-sidebar .panel{ display:none; }
+.room-screen.floating .watch-toolbar.floating-panel-active,
+.room-screen.floating .watch-sidebar .panel.floating-panel-active{ display:block; }
+
+.float-toggle-btn svg{ display:block; }
+
+@media (max-width: 680px){
+  .room-screen.floating{
+    inset: auto 12px 12px 12px;
+    width: auto;
+  }
+}
+
 /* ===================== WATCH / ROOM SCREEN ===================== */
 .room-screen{ display:flex; flex-direction: column; height: 100dvh; background: var(--bg); }
 .watch-header{
