@@ -438,27 +438,45 @@ loadHomeFeed('music');
 // ---------------------------------------------------------------------------
 // Local media (mic/cam) — off by default, user opts in
 // ---------------------------------------------------------------------------
+// IMPORTANT: the microphone is NOT opened at join. An open mic capture puts
+// phones / Bluetooth headsets into "voice call" mode, which makes *all* audio
+// on the device — including the YouTube music — sound low quality, even if
+// the mic is muted. So we only capture the mic while the Mic button is on,
+// and fully release it (track.stop()) when it's turned off.
+let micTrack = null;
+
 async function initLocalMedia() {
-  try {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    // start muted until user hits the mic button, but keep the track ready
-    localStream.getAudioTracks().forEach(t => (t.enabled = false));
-  } catch (err) {
-    console.warn('Mic permission not granted yet:', err.message);
-    localStream = new MediaStream(); // empty; peers just won't get audio until enabled
-  }
+  localStream = new MediaStream(); // empty until the user opts in to mic/cam
+}
+
+function setMicTrackOnPeers(track) {
+  peers.forEach((entry) => {
+    if (entry.audioSender) entry.audioSender.replaceTrack(track).catch(() => {});
+  });
 }
 
 micBtn.addEventListener('click', async () => {
   const on = micBtn.getAttribute('data-on') === 'true';
   if (!on) {
-    if (!localStream || localStream.getAudioTracks().length === 0) await initLocalMedia();
-    if (localStream.getAudioTracks().length === 0) {
+    if (!navigator.mediaDevices || !window.isSecureContext) {
+      alert('Microphone access requires HTTPS. This page must be loaded over https:// (or localhost).');
+      return;
+    }
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      micTrack = micStream.getAudioTracks()[0];
+      localStream.addTrack(micTrack);
+      setMicTrackOnPeers(micTrack);
+    } catch (err) {
       alert('Microphone access was blocked or denied. Click the padlock/site-info icon in your address bar, allow microphone access, then try again.');
       return;
     }
+  } else if (micTrack) {
+    setMicTrackOnPeers(null);   // stop sending
+    micTrack.stop();            // release the capture device entirely
+    localStream.removeTrack(micTrack);
+    micTrack = null;
   }
-  localStream.getAudioTracks().forEach(t => (t.enabled = !on));
   micBtn.setAttribute('data-on', String(!on));
   socket.emit('presence:update', { mic: !on });
   renderMyTile();
@@ -531,8 +549,14 @@ function createPeerConnection(peerId, name) {
   peers.set(peerId, entry);
 
   if (localStream) {
-    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    localStream.getVideoTracks().forEach(t => pc.addTrack(t, localStream));
   }
+  // Always keep one audio sender on the connection (empty until the mic is
+  // turned on). replaceTrack() on it needs no renegotiation, so the mic can
+  // be fully released when off without breaking the call.
+  const audioTx = pc.addTransceiver('audio', { direction: 'sendrecv' });
+  entry.audioSender = audioTx.sender;
+  if (micTrack) audioTx.sender.replaceTrack(micTrack).catch(() => {});
 
   pc.onicecandidate = (e) => {
     if (e.candidate) socket.emit('webrtc:ice', { to: peerId, candidate: e.candidate });
